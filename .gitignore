@@ -1,0 +1,30 @@
+target/
+server.log
+*.vsix
+Dont view this folder/
+.vscode/
+*.tmp
+
+# Local secrets / demo API config (copy from server/config/apis.example.toml)
+server/config/apis.toml
+
+# Optional GeoIP DB (MaxMind)
+server/geoip/*.mmdb
+
+# Exclude markdown and text files at repo root per request
+*.md
+*.txt
+
+# Exclude node and build artifacts
+/node_modules/
+/target/
+**/target/
+**/Cargo.lock
+
+# Logs and metadata
+metadata/
+metadata_dropped/
+user_files/
+
+# Keep docs/ (allowed)
+!docs/
