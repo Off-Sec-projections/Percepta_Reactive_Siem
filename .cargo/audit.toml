@@ -1,0 +1,13 @@
+# cargo-audit configuration
+# https://github.com/rustsec/rustsec/tree/main/cargo-audit#configuration-file
+
+[advisories]
+# RUSTSEC-2026-0049: rustls-webpki CRL Distribution Point matching bug.
+# Affects rustls-webpki 0.102.8, which is a transitive dependency of tonic 0.11
+# (tonic 0.11 → tokio-rustls 0.25 → rustls 0.22 → rustls-webpki 0.102.8).
+# Patched version requires rustls-webpki >= 0.103.10, which in turn requires
+# rustls 0.23 / tokio-rustls 0.26 / tonic 0.12 — a breaking API upgrade.
+# Tracked in: https://rustsec.org/advisories/RUSTSEC-2026-0049
+# Risk: limited — attacker needs control of a trusted CA to exploit; multi-
+#       distributionPoint certificates are uncommon in internal PKI setups.
+ignore = ["RUSTSEC-2026-0049"]
