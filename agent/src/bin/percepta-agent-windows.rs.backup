@@ -1,0 +1,408 @@
+//! Complete Windows SIEM Agent with GUI
+//! Single executable that includes:
+//! - Real Windows Event Log collection  
+//! - System tray icon
+//! - Windows service mode with auto-restart
+//! - Enrollment UI
+//! - Log parsing and streaming to server
+//! - Self-installing (no external files needed)
+
+use percepta_agent::{client, files, tls, windows_service};
+
+use anyhow::{bail, Result};
+use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use tokio::fs as async_fs;
+use uuid::Uuid;
+
+/// Application state shared between GUI and background tasks
+#[derive(Clone)]
+struct AgentState {
+    status: Arc<Mutex<String>>,
+    server_addr: Arc<Mutex<String>>,
+    enrolled: Arc<Mutex<bool>>,
+}
+
+impl Default for AgentState {
+    fn default() -> Self {
+        Self {
+            status: Arc::new(Mutex::new("Initializing...".to_string())),
+            server_addr: Arc::new(Mutex::new(String::new())),
+            enrolled: Arc::new(Mutex::new(false)),
+        }
+    }
+}
+
+#[cfg(feature = "gui")]
+mod gui_app {
+    use super::*;
+    use eframe::egui;
+
+    pub struct PerceptaAgentApp {
+        state: AgentState,
+        server_input: String,
+        otk_input: String,
+        enrolling: bool,
+    }
+
+    impl PerceptaAgentApp {
+        pub fn new(state: AgentState) -> Self {
+            Self {
+                state,
+                server_input: "localhost:8080".to_string(),
+                otk_input: String::new(),
+                enrolling: false,
+            }
+        }
+    }
+
+    impl eframe::App for PerceptaAgentApp {
+        fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.heading("🛡️ Percepta SIEM Agent");
+                ui.separator();
+
+                // Show current status (use blocking_lock for egui sync context)
+                let rt = tokio::runtime::Handle::try_current();
+                let status_text = if let Ok(handle) = rt {
+                    handle.block_on(async { self.state.status.lock().await.clone() })
+                } else {
+                    "Starting...".to_string()
+                };
+                ui.label(format!("Status: {}", status_text));
+
+                let enrolled = if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                    handle.block_on(async { *self.state.enrolled.lock().await })
+                } else {
+                    false
+                };
+
+                ui.separator();
+
+                if !enrolled && !self.enrolling {
+                    ui.label("Enroll this agent with the SIEM server:");
+                    
+                    ui.horizontal(|ui| {
+                        ui.label("Server URL:");
+                        ui.text_edit_singleline(&mut self.server_input);
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("One-Time Key:");
+                        ui.text_edit_singleline(&mut self.otk_input);
+                    });
+
+                    if ui.button("📝 Enroll Now").clicked() {
+                        self.enrolling = true;
+                        let state = self.state.clone();
+                        let server = self.server_input.clone();
+                        let otk = self.otk_input.clone();
+
+                        std::thread::spawn(move || {
+                            let rt = match tokio::runtime::Runtime::new() {
+                                Ok(runtime) => runtime,
+                                Err(e) => {
+                                    eprintln!("Failed to create tokio runtime: {}", e);
+                                    return;
+                                }
+                            };
+                            
+                            rt.block_on(async {
+                                *state.status.lock().await = "Enrolling with server...".to_string();
+                                
+                                // Perform actual enrollment
+                                let cert_dir = PathBuf::from(r"C:\ProgramData\percepta_agent\certs");
+                                let agent_id = format!("windows-{}", Uuid::new_v4());
+                                
+                                match tls::enroll_with_otk(&server, &otk, &agent_id, &cert_dir).await {
+                                    Ok(_) => {
+                                        *state.enrolled.lock().await = true;
+                                        *state.server_addr.lock().await = server.clone();
+                                        *state.status.lock().await = "✅ Enrolled! Agent starting...".to_string();
+                                    }
+                                    Err(e) => {
+                                        *state.status.lock().await = format!("❌ Enrollment failed: {}", e);
+                                    }
+                                }
+                            });
+                        });
+                    }
+                } else if self.enrolling {
+                    ui.label("Enrollment in progress...");
+                } else {
+                    ui.label("✅ Agent is enrolled and running");
+                    ui.label("Collecting Windows Event Logs...");
+                    ui.separator();
+                    
+                    if ui.button("🔄 Restart Agent").clicked() {
+                        std::process::exit(0);
+                    }
+                }
+            });
+
+            // Request repaint for live updates
+            ctx.request_repaint();
+        }
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    // Check for service mode flag
+    let args: Vec<String> = std::env::args().collect();
+    
+    if args.contains(&"--service".to_string()) {
+        // Run as Windows service (no GUI)
+        return run_agent_service().await;
+    }
+
+    // Otherwise run with GUI
+    #[cfg(feature = "gui")]
+    {
+        let state = AgentState::default();
+        
+        // Start background agent task
+        let bg_state = state.clone();
+        tokio::spawn(async move {
+            if let Err(e) = run_agent_background(bg_state).await {
+                eprintln!("Agent background task error: {}", e);
+            }
+        });
+
+        // Launch GUI on main thread
+        let options = eframe::NativeOptions::default();
+        eframe::run_native(
+            "Percepta SIEM Agent",
+            options,
+            Box::new(|_cc| Box::new(gui_app::PerceptaAgentApp::new(state))),
+        )
+        .map_err(|e| anyhow::anyhow!("GUI error: {}", e))?;
+    }
+
+    #[cfg(not(feature = "gui"))]
+    {
+        bail!("GUI feature not enabled");
+    }
+
+    Ok(())
+}
+
+/// Run agent as Windows service (no GUI)
+async fn run_agent_service() -> Result<()> {
+    windows_service::run_as_service(|| async {
+        // Run standard agent collection loop in service mode
+        let cert_dir = PathBuf::from(r"C:\ProgramData\percepta_agent\certs");
+        
+        // Check if enrolled
+        if !cert_dir.join("client_cert.pem").exists() {
+            bail!("Agent not enrolled. Run without --service flag first to enroll.");
+        }
+
+        // Read server config
+        let server_addr = match files::read_server_config(&cert_dir).await {
+            Ok(addr) => addr,
+            Err(e) => bail!("Failed to read server config: {}", e),
+        };
+
+        // Get agent ID
+        let agent_id: String = files::get_agent_id(&cert_dir).await?;
+        
+        // Determine gRPC address
+        let grpc_addr = if server_addr.contains(":") {
+            let parts: Vec<&str> = server_addr.split(':').collect();
+            format!("{}:50051", parts[0])
+        } else {
+            format!("{}:50051", server_addr)
+        };
+
+        println!("🛡️ Percepta SIEM Agent Service Starting");
+        println!("   Server: {}", grpc_addr);
+        println!("   Agent ID: {}", agent_id);
+
+        // Main service loop with auto-reconnect
+        loop {
+            println!("🔗 Connecting to server...");
+            
+            let client_handle = match client::connect_and_stream(&grpc_addr, &cert_dir, &agent_id).await {
+                Ok(handle) => {
+                    println!("✅ Connected to server");
+                    handle
+                }
+                Err(e) => {
+                    println!("❌ Connection failed: {}", e);
+                    tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+                    continue;
+                }
+            };
+
+            // Initialize Windows Event Log collector
+            #[cfg(windows)]
+            let mut collector = match percepta_agent::windows_eventlog::WindowsEventCollector::initialize(
+                agent_id.clone(),
+                cert_dir.clone(),
+            ).await {
+                Ok(c) => {
+                    println!("📋 Event collector initialized");
+                    c
+                }
+                Err(e) => {
+                    println!("❌ Failed to initialize collector: {}", e);
+                    tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+                    continue;
+                }
+            };
+
+            let mut event_count = 0u64;
+            println!("🔍 Collecting Windows Event Logs...");
+            
+            // Collection loop
+            loop {
+                #[cfg(windows)]
+                let events = match collector.collect_events(100).await {
+                    Ok(evts) => evts,
+                    Err(e) => {
+                        println!("⚠️  Collection error: {}", e);
+                        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                        continue;
+                    }
+                };
+
+                #[cfg(windows)]
+                if !events.is_empty() {
+                    event_count += events.len() as u64;
+                    println!("📤 Sending {} events (total: {})...", events.len(), event_count);
+                    
+                    if let Err(e) = client_handle.send_events(events).await {
+                        println!("⚠️  Send failed: {}", e);
+                        break; // Reconnect
+                    }
+                }
+
+                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+            }
+
+            println!("Connection lost, reconnecting...");
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+        }
+    }).await
+}
+
+/// Background agent task (collects and sends logs)
+async fn run_agent_background(state: AgentState) -> Result<()> {
+    loop {
+        let enrolled = *state.enrolled.lock().await;
+        
+        if !enrolled {
+            *state.status.lock().await = "Waiting for enrollment...".to_string();
+            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+            continue;
+        }
+
+        // Agent is enrolled, start collection
+        *state.status.lock().await = "Connecting to server...".to_string();
+
+        // Get server address
+        let server_addr = state.server_addr.lock().await.clone();
+        if server_addr.is_empty() {
+            *state.status.lock().await = "❌ No server address configured".to_string();
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+            continue;
+        }
+
+        // Setup paths
+        let cert_dir = PathBuf::from(r"C:\ProgramData\percepta_agent\certs");
+        let agent_id: String = match files::get_agent_id(&cert_dir).await {
+            Ok(id) => id,
+            Err(e) => {
+                *state.status.lock().await = format!("❌ Failed to get agent ID: {}", e);
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                continue;
+            }
+        };
+
+        // Connect to server with gRPC
+        *state.status.lock().await = "🔗 Connecting to SIEM server...".to_string();
+        
+        // Determine gRPC address (server_addr is HTTP portal address)
+        let grpc_addr = if server_addr.contains(":") {
+            let parts: Vec<&str> = server_addr.split(':').collect();
+            format!("{}:50051", parts[0]) // gRPC on port 50051
+        } else {
+            format!("{}:50051", server_addr)
+        };
+
+        let client_handle = match client::connect_and_stream(&grpc_addr, &cert_dir, &agent_id).await {
+            Ok(handle) => {
+                *state.status.lock().await = "✅ Connected to server".to_string();
+                handle
+            }
+            Err(e) => {
+                *state.status.lock().await = format!("❌ Connection failed: {}", e);
+                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+                continue;
+            }
+        };
+
+        // Initialize Windows Event Log collector
+        #[cfg(windows)]
+        let mut collector = match percepta_agent::windows_eventlog::WindowsEventCollector::initialize(
+            agent_id.clone(),
+            cert_dir.clone(),
+        ).await {
+            Ok(c) => {
+                *state.status.lock().await = "📋 Event collector initialized".to_string();
+                c
+            }
+            Err(e) => {
+                *state.status.lock().await = format!("❌ Failed to initialize collector: {}", e);
+                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+                continue;
+            }
+        };
+
+        // Main collection loop
+        let mut event_count = 0u64;
+        *state.status.lock().await = "🔍 Collecting Windows Event Logs...".to_string();
+        
+        loop {
+            // Check if still enrolled
+            if !*state.enrolled.lock().await {
+                break;
+            }
+
+            // Collect events from Windows Event Log
+            #[cfg(windows)]
+            let events = match collector.collect_events(100).await {
+                Ok(evts) => evts,
+                Err(e) => {
+                    *state.status.lock().await = format!("⚠️  Collection error: {}", e);
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                    continue;
+                }
+            };
+
+            // Send events to server if any collected
+            #[cfg(windows)]
+            if !events.is_empty() {
+                event_count += events.len() as u64;
+                *state.status.lock().await = format!("📤 Sending {} events (total: {})...", events.len(), event_count);
+                
+                if let Err(e) = client_handle.send_events(events).await {
+                    *state.status.lock().await = format!("⚠️  Send failed: {}", e);
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                    break; // Reconnect
+                }
+                
+                *state.status.lock().await = format!("✅ Active - Collected {} events", event_count);
+            }
+
+            // Wait before next collection cycle
+            tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+        }
+
+        // If we're here, connection was lost or enrollment removed
+        *state.status.lock().await = "Connection lost, reconnecting...".to_string();
+        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+    }
+}
