@@ -1,0 +1,86 @@
+[package]
+name = "percepta-agent"
+version = "0.1.0"
+edition = "2021"
+description = "Percepta SIEM agent for system event collection and forwarding"
+authors = ["Percepta Team"]
+repository = "https://github.com/percepta/percepta-siem"
+license = "MIT OR Apache-2.0"
+keywords = ["siem", "security", "monitoring", "agent", "events"]
+categories = ["network-programming", "security-tools"]
+
+[features]
+default = ["simulate"]
+simulate = []
+gui = ["eframe", "dep:rfd"]
+windows-service = ["dep:native-windows-gui", "dep:native-windows-derive"]
+
+[dependencies]
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "time", "fs", "signal", "process"] }
+tokio-stream = "0.1"
+tonic = { version = "0.11", features = ["transport", "tls", "gzip"] }
+prost = { version = "0.12" }
+prost-types = "0.12"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1.0"
+openssl = { version = "0.10", features = ["vendored"] }
+rcgen = { version = "0.11", optional = true }
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "registry"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+mdns-sd = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+hex = "0.4"
+hostname = "0.3"
+local-ip-address = "0.5"
+sys-info = "0.9"
+fastrand = "2.0"
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+tokio-util = { version = "0.7", features = ["io"] }
+tracing-core = "0.1.34"
+log = "0.4"
+futures = "0.3"
+async-stream = "0.3"
+quick-xml = { version = "0.31", features = ["serialize"] }
+fs2 = "0.4"
+which = "4.4"
+eframe = { version = "0.24", optional = true }
+zip = { version = "0.6", default-features = false, features = ["deflate"] }
+rfd = { version = "0.14", optional = true }
+once_cell = "1.19"
+
+# Optional Windows GUI/tray crates (used when enabling `windows-service` feature)
+native-windows-gui = { version = "1.0", optional = true }
+native-windows-derive = { version = "1.0", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = ["Win32_System_EventLog", "Win32_Foundation", "Win32_System_Diagnostics_Debug", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis", "Win32_Networking_WinSock"] }
+winapi = { version = "0.3", features = ["winuser"] }
+
+[build-dependencies]
+tonic-build = { version = "0.11", features = ["prost"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3.8"
+
+[[bin]]
+name = "percepta-agent"
+path = "src/main.rs"
+
+[[bin]]
+name = "gui"
+path = "src/bin/gui.rs"
+required-features = ["gui"]
+
+# Library to expose modules for the Windows GUI binary
+[lib]
+name = "percepta_agent"
+path = "src/lib.rs"
+
+# Complete Windows agent with GUI, tray, service, and real Event Log collection
+[[bin]]
+name = "percepta-agent-windows"
+path = "src/bin/percepta-agent-windows.rs"
+required-features = ["gui", "windows-service"]
