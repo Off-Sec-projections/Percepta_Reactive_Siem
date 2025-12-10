@@ -1,0 +1,43 @@
+digraph DeploymentTopology {
+  rankdir=TB;
+  graph [fontname="Helvetica", bgcolor="white", pad="0.3", ranksep="0.75", nodesep="0.5", splines=polyline];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=18, color="#334155", penwidth=1.2, fillcolor="#ffffff", margin="0.28,0.2"];
+  edge [fontname="Helvetica", fontsize=10, color="#475569", penwidth=1.35, arrowsize=0.8];
+
+  subgraph cluster_clients {
+    label="External Clients and Sources";
+    color="#93c5fd";
+    style="rounded,filled";
+    fillcolor="#eff6ff";
+
+    browser [label="Browsers", fillcolor="#ffffff"];
+    agents [label="Agents", fillcolor="#ffffff"];
+    devices [label="Devices", fillcolor="#ffffff"];
+  }
+
+  subgraph cluster_platform {
+    label="Percepta Deployment";
+    color="#86efac";
+    style="rounded,filled";
+    fillcolor="#f0fdf4";
+
+    nginx [label="Nginx", fillcolor="#ffffff"];
+    server [label="Percepta Server", fillcolor="#ffffff"];
+  }
+
+  subgraph cluster_data {
+    label="Persistence Plane";
+    color="#fcd34d";
+    style="rounded,filled";
+    fillcolor="#fefce8";
+
+    clickhouse [label="ClickHouse", fillcolor="#ffffff"];
+  }
+
+  { rank=same; browser agents devices }
+  browser -> nginx;
+  nginx -> server;
+  agents -> server;
+  devices -> server;
+  server -> clickhouse;
+}
