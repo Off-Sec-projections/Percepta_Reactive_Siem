@@ -1,0 +1,18 @@
+digraph EnrollmentWorkflow {
+  rankdir=TB;
+  graph [fontname="Helvetica", bgcolor="white", pad="0.35", ranksep="0.8", nodesep="0.55", splines=polyline];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=18, color="#334155", penwidth=1.2, fillcolor="#ffffff", margin="0.28,0.2"];
+  edge [fontname="Helvetica", fontsize=10, color="#475569", penwidth=1.4, arrowsize=0.8];
+
+  authority [label="1. Token Issued", fillcolor="#fdf2f8"];
+  claim [label="2. Agent Claim", fillcolor="#eff6ff"];
+  verify [label="3. Identity Check", fillcolor="#dcfce7"];
+  issue [label="4. Certificate Issued", fillcolor="#fef3c7"];
+  stream [label="5. Secure Streaming", fillcolor="#dbeafe"];
+  renew [label="6. Renewal Cycle", fillcolor="#fde68a"];
+
+  { rank=same; authority claim verify }
+  { rank=same; issue stream renew }
+
+  authority -> claim -> verify -> issue -> stream -> renew;
+}
