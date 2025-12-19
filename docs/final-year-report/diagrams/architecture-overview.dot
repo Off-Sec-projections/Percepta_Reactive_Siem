@@ -1,0 +1,28 @@
+digraph ArchitectureOverview {
+  rankdir=TB;
+  graph [fontname="Helvetica", bgcolor="white", pad="0.35", ranksep="0.85", nodesep="0.6", splines=polyline];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=18, color="#334155", penwidth=1.2, margin="0.28,0.2"];
+  edge [fontname="Helvetica", fontsize=10, color="#475569", penwidth=1.4, arrowsize=0.8];
+
+  agents [label="Endpoint Agents", fillcolor="#dbeafe"];
+  sensors [label="Sensors and Syslog", fillcolor="#dbeafe"];
+  trust [label="Trust Services", fillcolor="#dcfce7"];
+  ingest [label="Secure Ingest", fillcolor="#dcfce7"];
+  process [label="Process and Normalize", fillcolor="#fef3c7"];
+  detect [label="Detect and Correlate", fillcolor="#fecaca"];
+  storage [label="ClickHouse Storage", fillcolor="#fde68a"];
+  dashboard [label="Dashboard and APIs", fillcolor="#fbcfe8"];
+  response [label="Response Controls", fillcolor="#c7d2fe"];
+
+  { rank=same; agents sensors }
+  { rank=same; trust ingest process detect }
+  { rank=same; storage dashboard response }
+
+  agents -> ingest;
+  sensors -> ingest;
+  trust -> ingest;
+  ingest -> process -> detect;
+  detect -> storage;
+  detect -> dashboard;
+  detect -> response;
+}
