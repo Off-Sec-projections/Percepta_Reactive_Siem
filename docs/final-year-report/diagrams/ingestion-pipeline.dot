@@ -1,0 +1,18 @@
+digraph IngestionPipeline {
+  rankdir=TB;
+  graph [fontname="Helvetica", bgcolor="white", pad="0.35", ranksep="0.8", nodesep="0.55", splines=polyline];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=18, color="#334155", penwidth=1.15, fillcolor="#ffffff", margin="0.28,0.2"];
+  edge [fontname="Helvetica", fontsize=10, color="#475569", penwidth=1.35, arrowsize=0.8];
+
+  source [label="1. Sources", fillcolor="#eff6ff"];
+  ingest [label="2. Secure Ingest", fillcolor="#dcfce7"];
+  transform [label="3. Normalize", fillcolor="#fef3c7"];
+  inspect [label="4. Enrich", fillcolor="#fde68a"];
+  detect [label="5. Detect", fillcolor="#fecaca"];
+  serve [label="6. Store and Serve", fillcolor="#ddd6fe"];
+
+  { rank=same; source ingest transform }
+  { rank=same; inspect detect serve }
+
+  source -> ingest -> transform -> inspect -> detect -> serve;
+}
