@@ -1,0 +1,44 @@
+[Unit]
+Description=Percepta Reactive SIEM Server
+Documentation=https://off-sec-projections.me
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=percepta
+Group=percepta
+WorkingDirectory=/opt/percepta-siem
+
+# The binary — set in ExecStart or replace with absolute path
+ExecStart=/opt/percepta-siem/percepta-server
+
+Restart=on-failure
+RestartSec=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=percepta-siem
+
+# ── Environment — create /opt/percepta-siem/.env and set these ──────
+# PERCEPTA_ADMIN_PASS    = strong admin password
+# PERCEPTA_ANALYST_PASS  = strong analyst password
+# PERCEPTA_BEHIND_PROXY  = 1  (when using Nginx/Caddy for HTTPS)
+# PERCEPTA_WEB_BIND      = 127.0.0.1:8080  (loopback when behind proxy)
+# PERCEPTA_GEOIP_DB      = /opt/percepta-siem/geoip/GeoLite2-City.mmdb
+EnvironmentFile=-/opt/percepta-siem/.env
+
+# ── Hardening ────────────────────────────────────────────────────────
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/percepta-siem /tmp
+PrivateTmp=yes
+ProtectHome=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=multi-user.target
