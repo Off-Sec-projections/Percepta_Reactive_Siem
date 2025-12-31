@@ -1,0 +1,19 @@
+digraph ResponseWorkflow {
+  rankdir=LR;
+  graph [fontname="Helvetica", bgcolor="white", pad="0.3", ranksep="0.9", nodesep="0.45", splines=polyline];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=18, color="#334155", penwidth=1.2, fillcolor="#ffffff", margin="0.28,0.2"];
+  edge [fontname="Helvetica", fontsize=10, color="#475569", penwidth=1.35, arrowsize=0.8];
+
+  alert [label="1. Alert", fillcolor="#fdf2f8"];
+  review [label="2. Investigate", fillcolor="#eff6ff"];
+  decision [label="3. Decide", shape=diamond, fillcolor="#fef3c7"];
+  contain [label="4a. Contain", fillcolor="#dcfce7"];
+  monitor [label="4b. Monitor", fillcolor="#dbeafe"];
+  audit [label="5. Audit", fillcolor="#fde68a"];
+
+  alert -> review -> decision;
+  decision -> contain;
+  decision -> monitor;
+  contain -> audit;
+  monitor -> audit;
+}
