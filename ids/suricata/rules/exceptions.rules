@@ -1,0 +1,182 @@
+# ============================================================================
+# Percepta SIEM – Whitelist Exception Rules
+# ============================================================================
+# These rules suppress false positives from legitimate activities.
+# Includes: security scanning tools, admin operations, cloud services,
+# backup systems, CI/CD pipelines, and legitimate internal traffic.
+#
+# Exception Strategy:
+# 1. Whitelist legitimate tool User-Agents (Nessus, Qualys, etc.)
+# 2. Exclude internal network scanners from port scan detection
+# 3. Exclude backup/CI systems from brute-force detection
+# 4. Exclude cloud service IPs from C2/exfil detection
+# 5. Suppress known false positives (backup protocols, health checks)
+#
+# These rules SUPPRESS alerts using 'pass' action (evaluated before alert rules).
+# ============================================================================
+
+# ── Security Scanning Tools (Nessus, Qualys, etc.) ──────────────────────
+
+# Nessus and other authenticated scanners use aggressive scanning
+# but are legitimate vulnerability assessments
+pass tcp any any -> $HOME_NET any (msg:"WHITELIST: Nessus vulnerability scanner"; content:"Nessus"; http_user_agent; classtype:network-scan; sid:9950001; rev:1;)
+pass tcp any any -> $HOME_NET any (msg:"WHITELIST: Qualys scanner"; content:"Qualys"; http_user_agent; classtype:network-scan; sid:9950002; rev:1;)
+pass tcp any any -> $HOME_NET any (msg:"WHITELIST: Shodan Internet scan"; content:"Shodan"; http_user_agent; classtype:network-scan; sid:9950003; rev:1;)
+pass tcp any any -> $HOME_NET any (msg:"WHITELIST: OpenVAS vulnerability scanner"; content:"OpenVAS"; http_user_agent; classtype:network-scan; sid:9950004; rev:1;)
+
+# Legitimate scanner ports and protocols
+pass tcp 192.168.0.0/16 any -> any 1241 (msg:"WHITELIST: Nessus scanner communication"; flow:to_server; classtype:network-scan; sid:9950005; rev:1;)
+
+# ── Network Administration Tools ──────────────────────────────────────
+
+# These tools legitimately scan networks for management/monitoring
+pass tcp 192.168.0.0/16 any -> $HOME_NET any (msg:"WHITELIST: Internal network admin scanning"; flags:S,12; flow:to_server; threshold:type both, track by_src, count 300, seconds 10; classtype:network-scan; sid:9950010; rev:1;)
+
+# Ping sweeps by monitoring systems
+pass icmp 192.168.0.0/16 any -> any any (msg:"WHITELIST: Internal monitoring ICMP sweep"; itype:8; classtype:network-scan; sid:9950011; rev:1;)
+
+# Backup and disaster recovery systems
+pass tcp 192.168.0.0/16 any -> $HOME_NET 9100:9200 (msg:"WHITELIST: Backup system communication"; flow:to_server; classtype:network-scan; sid:9950012; rev:1;)
+
+# ── SSH/RDP Administration Exceptions ────────────────────────────────────
+
+# Internal admins performing legitimate RDP/SSH
+pass tcp 192.168.0.0/16 any -> $HOME_NET 22 (msg:"WHITELIST: Internal SSH admin"; flow:to_server,established; classtype:attempted-admin; sid:9950020; rev:1;)
+pass tcp 192.168.0.0/16 any -> $HOME_NET 3389 (msg:"WHITELIST: Internal RDP admin"; flow:to_server,established; classtype:attempted-admin; sid:9950021; rev:1;)
+
+# RDP/SSH from known admin workstations (customize for your environment)
+# Example: pass tcp [ADMIN_IP] any -> any 22 (msg:"WHITELIST: Admin SSH"; classtype:attempted-admin; sid:9950022; rev:1;)
+# Example: pass tcp [ADMIN_IP] any -> any 3389 (msg:"WHITELIST: Admin RDP"; classtype:attempted-admin; sid:9950023; rev:1;)
+
+# Known management tools
+pass tcp any any -> $HOME_NET 22 (msg:"WHITELIST: Ansible SSH management"; content:"Ansible"; http_user_agent; classtype:attempted-admin; sid:9950024; rev:1;)
+pass tcp any any -> $HOME_NET 3389 (msg:"WHITELIST: Puppet RDP management"; content:"Puppet"; http_user_agent; classtype:attempted-admin; sid:9950025; rev:1;)
+
+# ── Brute Force Exceptions ─────────────────────────────────────────────
+
+# Password managers and legitimate auth tools don't trigger brute force
+pass tcp any any -> $HOME_NET 22 (msg:"WHITELIST: SSH key-based auth (not brute force)"; flow:to_server,established; content:"openssh"; classtype:attempted-admin; sid:9950030; rev:1;)
+pass tcp any any -> $HOME_NET 22 (msg:"WHITELIST: SSH auth via Kerberos"; flow:to_server,established; content:"gssapi"; classtype:attempted-admin; sid:9950031; rev:1;)
+
+# Database backups (legitimate login patterns)
+pass tcp 192.168.0.0/16 any -> $HOME_NET 3306 (msg:"WHITELIST: Internal MySQL backup"; flow:to_server,established; classtype:attempted-admin; sid:9950032; rev:1;)
+pass tcp 192.168.0.0/16 any -> $HOME_NET 5432 (msg:"WHITELIST: Internal PostgreSQL backup"; flow:to_server,established; classtype:attempted-admin; sid:9950033; rev:1;)
+pass tcp 192.168.0.0/16 any -> $HOME_NET 1433 (msg:"WHITELIST: Internal MSSQL backup"; flow:to_server,established; classtype:attempted-admin; sid:9950034; rev:1;)
+
+# CI/CD systems (Jenkins, GitLab CI, etc.) — frequent auth attempts are normal
+pass tcp any any -> $HOME_NET any (msg:"WHITELIST: CI/CD pipeline auth"; content:"Jenkins"; http_user_agent; classtype:attempted-admin; sid:9950035; rev:1;)
+pass tcp any any -> $HOME_NET any (msg:"WHITELIST: GitLab CI/CD"; content:"gitlab"; http_user_agent; classtype:attempted-admin; sid:9950036; rev:1;)
+
+# ── Web Application Exceptions ───────────────────────────────────────────
+
+# Legitimate app health checks and internal requests often trigger web attack rules
+pass tcp 127.0.0.0/8 any -> any any (msg:"WHITELIST: Localhost health checks"; flow:to_server; classtype:policy-violation; sid:9950040; rev:1;)
+pass tcp 192.168.0.0/16 any -> any any (msg:"WHITELIST: Internal app health checks"; flow:to_server; classtype:policy-violation; sid:9950041; rev:1;)
+
+# Penetration testing (when authorized)
+# Uncomment and customize during authorized penetration tests:
+# pass tcp [PENTEST_IP] any -> $HOME_NET any (msg:"WHITELIST: Authorized pentest"; flow:to_server; classtype:policy-violation; sid:9950042; rev:1;)
+
+# Web vulnerability scanners (Burp Suite, OWASP ZAP, etc.) during authorized testing
+pass tcp any any -> $HOME_NET any (msg:"WHITELIST: Burp Suite active scanner"; content:"Burp"; http_user_agent; classtype:policy-violation; sid:9950043; rev:1;)
+pass tcp any any -> $HOME_NET any (msg:"WHITELIST: OWASP ZAP scanner"; content:"ZAP"; http_user_agent; classtype:policy-violation; sid:9950044; rev:1;)
+
+# ── Data Exfiltration & Large Transfer Exceptions ───────────────────────
+
+# Legitimate large data transfers (backups to cloud storage, logs, etc.)
+# Cloud storage and CDN services should not trigger exfil alerts
+pass tcp any any -> 52.0.0.0/8 any (msg:"WHITELIST: AWS data transfer"; flow:to_server,established; classtype:policy-violation; sid:9950050; rev:1;)
+pass tcp any any -> 13.0.0.0/8 any (msg:"WHITELIST: Azure data transfer"; flow:to_server,established; classtype:policy-violation; sid:9950051; rev:1;)
+pass tcp any any -> 199.36.0.0/10 any (msg:"WHITELIST: Google Cloud data transfer"; flow:to_server,established; classtype:policy-violation; sid:9950052; rev:1;)
+
+# Backup services (daily, legitimate large transfers)
+pass tcp $HOME_NET any -> any 443 (msg:"WHITELIST: Backblaze backup"; content:"backblaze"; http_user_agent; classtype:policy-violation; sid:9950053; rev:1;)
+pass tcp $HOME_NET any -> any 443 (msg:"WHITELIST: Carbonite backup"; content:"carbonite"; http_user_agent; classtype:policy-violation; sid:9950054; rev:1;)
+
+# Log forwarding to centralized SIEM (legitimate high-volume transfer)
+pass tcp $HOME_NET any -> any 514 (msg:"WHITELIST: Syslog forwarding"; flow:to_server,established; classtype:policy-violation; sid:9950055; rev:1;)
+pass tcp $HOME_NET any -> any 1514 (msg:"WHITELIST: TLS Syslog forwarding"; flow:to_server,established; classtype:policy-violation; sid:9950056; rev:1;)
+
+# ── DNS Exceptions ────────────────────────────────────────────────────────
+
+# Legitimate DNS queries should not trigger DNS abuse rules
+# Internal DNS queries
+pass udp $HOME_NET any -> 192.168.0.0/16 53 (msg:"WHITELIST: Internal DNS queries"; classtype:network-scan; sid:9950060; rev:1;)
+pass tcp $HOME_NET any -> 192.168.0.0/16 53 (msg:"WHITELIST: Internal DNS zone transfer"; flow:to_server; classtype:network-scan; sid:9950061; rev:1;)
+
+# Public DNS resolvers (legitimate, configured)
+pass udp $HOME_NET any -> 8.8.8.8 53 (msg:"WHITELIST: Google Public DNS"; classtype:network-scan; sid:9950062; rev:1;)
+pass udp $HOME_NET any -> 1.1.1.1 53 (msg:"WHITELIST: Cloudflare Public DNS"; classtype:network-scan; sid:9950063; rev:1;)
+
+# DNSSEC validation queries
+pass udp any any -> any 53 (msg:"WHITELIST: DNSSEC validation"; content:"|00 29|"; offset:12; classtype:network-scan; sid:9950064; rev:1;)
+
+# ── C2/Suspicious Outbound Exceptions ───────────────────────────────────
+
+# Legitimate cloud services and VPN providers
+pass tcp $HOME_NET any -> any 1194 (msg:"WHITELIST: OpenVPN"; flow:to_server; classtype:policy-violation; sid:9950070; rev:1;)
+pass tcp $HOME_NET any -> any 443 (msg:"WHITELIST: VPN provider (NordVPN)"; content:"openvpn"; classtype:policy-violation; sid:9950071; rev:1;)
+pass tcp $HOME_NET any -> any 443 (msg:"WHITELIST: Wireguard VPN"; content:"wireguard"; classtype:policy-violation; sid:9950072; rev:1;)
+
+# Cloud service APIs and SDKs (AWS, Azure, GCP)
+pass tcp $HOME_NET any -> any 443 (msg:"WHITELIST: AWS CLI"; content:"aws-cli"; http_user_agent; classtype:policy-violation; sid:9950073; rev:1;)
+pass tcp $HOME_NET any -> any 443 (msg:"WHITELIST: Azure SDK"; content:"Azure"; http_user_agent; classtype:policy-violation; sid:9950074; rev:1;)
+
+# Development and testing tools
+pass tcp $HOME_NET any -> any any (msg:"WHITELIST: curl download"; content:"curl"; http_user_agent; classtype:policy-violation; sid:9950075; rev:1;)
+pass tcp $HOME_NET any -> any any (msg:"WHITELIST: wget download"; content:"wget"; http_user_agent; classtype:policy-violation; sid:9950076; rev:1;)
+pass tcp $HOME_NET any -> any any (msg:"WHITELIST: Python package manager"; content:"python"; http_user_agent; classtype:policy-violation; sid:9950077; rev:1;)
+
+# ── Lateral Movement Exceptions ──────────────────────────────────────────
+
+# Legitimate internal lateral movement (admin tasks, backups)
+pass tcp $HOME_NET any -> $HOME_NET 445 (msg:"WHITELIST: Internal SMB admin"; flow:to_server,established; classtype:attempted-admin; sid:9950080; rev:1;)
+pass tcp $HOME_NET any -> $HOME_NET 139 (msg:"WHITELIST: Internal NetBIOS session"; flow:to_server; classtype:attempted-admin; sid:9950081; rev:1;)
+pass tcp $HOME_NET any -> $HOME_NET 389 (msg:"WHITELIST: Internal LDAP queries"; flow:to_server; classtype:attempted-admin; sid:9950082; rev:1;)
+pass tcp $HOME_NET any -> $HOME_NET 636 (msg:"WHITELIST: Internal LDAPS queries"; flow:to_server; classtype:attempted-admin; sid:9950083; rev:1;)
+
+# Backup systems performing enumeration
+pass tcp 192.168.0.0/16 any -> $HOME_NET 139:445 (msg:"WHITELIST: Backup system SMB enumeration"; flow:to_server; classtype:attempted-admin; sid:9950084; rev:1;)
+
+# ── Protocol Normalcy Exceptions ─────────────────────────────────────────
+
+# Known protocols on alternate ports (legitimate in some environments)
+pass tcp any any -> any 2222 (msg:"WHITELIST: SSH on alternate port 2222"; flow:to_server; content:"SSH-"; classtype:policy-violation; sid:9950090; rev:1;)
+pass tcp any any -> any 8022 (msg:"WHITELIST: SSH on alternate port 8022"; flow:to_server; content:"SSH-"; classtype:policy-violation; sid:9950091; rev:1;)
+
+# Redis/Memcached on internal networks only
+pass tcp 192.168.0.0/16 any -> 192.168.0.0/16 6379 (msg:"WHITELIST: Internal Redis"; flow:to_server; classtype:network-scan; sid:9950092; rev:1;)
+pass tcp 192.168.0.0/16 any -> 192.168.0.0/16 11211 (msg:"WHITELIST: Internal Memcached"; flow:to_server; classtype:network-scan; sid:9950093; rev:1;)
+
+# ── False Positive Adjustments ───────────────────────────────────────────
+
+# Legitimate file downloads with common tools
+pass tcp $HOME_NET any -> any any (msg:"WHITELIST: Microsoft delivery optimization"; content:"dosvcs"; http_user_agent; classtype:policy-violation; sid:9950100; rev:1;)
+pass tcp $HOME_NET any -> any any (msg:"WHITELIST: Windows Update"; content:"WinHttp"; http_user_agent; classtype:policy-violation; sid:9950101; rev:1;)
+
+# ============================================================================
+# Instructions for Customization:
+# ============================================================================
+#
+# 1. Review the rules above — some are generic, others need customization
+#
+# 2. Replace common IPs/ranges:
+#    - $HOME_NET: Your internal network (usually 192.168.0.0/16 or 10.0.0.0/8)
+#    - [ADMIN_IP]: Workstation IPs for your admin team
+#    - [PENTEST_IP]: Only uncomment during authorized penetration tests
+#
+# 3. Add specific tool IPs/users:
+#    - If your Nessus scanner is at 192.168.1.100, add:
+#      pass tcp 192.168.1.100 any -> any any (msg:"WHITELIST: Nessus scanner"; sid:9950XXX; rev:1;)
+#
+# 4. Test thoroughly:
+#    - Review false_positive reports in Percepta dashboard
+#    - Temporarily set these rules to 'noalert' to see what they exclude
+#    - Once validated, change to 'pass' to suppress alerts
+#
+# 5. Monitor effectiveness:
+#    - Track reduction in false positives
+#    - Ensure security detections are still firing for real threats
+#    - Adjust thresholds if too many alerts still occur
+#
+# ============================================================================
