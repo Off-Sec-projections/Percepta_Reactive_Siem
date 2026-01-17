@@ -1,0 +1,148 @@
+version: '3.8'
+
+services:
+  # ClickHouse database - persistent event & alert storage
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.3
+    container_name: percepta-clickhouse
+    ports:
+      - "8123:8123"    # HTTP interface
+      - "9000:9000"    # Native client port
+      - "9009:9009"    # Interserver port
+    environment:
+      CLICKHOUSE_DB: percepta
+      CLICKHOUSE_ADMIN_USER: admin
+      # SECURITY: Must be set via environment variable or .env file - no embedded defaults
+      CLICKHOUSE_ADMIN_PASSWORD: "${CLICKHOUSE_PASSWORD:?Error: CLICKHOUSE_PASSWORD must be set in environment or .env file. Generate with: openssl rand -base64 32}"
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./config/clickhouse/config.xml:/etc/clickhouse-server/config.xml:ro
+    networks:
+      - percepta-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Percepta SIEM Server
+  percepta-server:
+    image: percepta-siem:latest
+    container_name: percepta-server
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"    # HTTP API & Dashboard
+      - "443:443"      # HTTPS
+      - "5003:5003"    # gRPC collector
+      - "5004:5004"    # gRPC events service
+    environment:
+      RUST_LOG: "percepta_server=info,warn"
+      CLICKHOUSE_URL: "http://clickhouse:8123"
+      CLICKHOUSE_DB: percepta
+      CLICKHOUSE_USER: admin
+      # SECURITY: Password must be set via environment variable or .env file
+      CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:?Error: CLICKHOUSE_PASSWORD must be set in environment or .env file. Generate with: openssl rand -base64 32}"
+      PERCEPTA_SERVER_ADDR: "0.0.0.0:8080"
+      PERCEPTA_GRPC_ADDR: "0.0.0.0:5003"
+      PERCEPTA_TLS_CERT: "/etc/percepta/certs/server.crt"
+      PERCEPTA_TLS_KEY: "/etc/percepta/certs/server.key"
+      PERCEPTA_MINIO_ENDPOINT: "minio:9000"
+      PERCEPTA_MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:?Error: MINIO_ACCESS_KEY must be set}"
+      PERCEPTA_MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:?Error: MINIO_SECRET_KEY must be set}"
+      PERCEPTA_PLAYBOOKS_LIVE: "1"
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    volumes:
+      - ./certs:/etc/percepta/certs:ro
+      - percepta-logs:/var/log/percepta
+    networks:
+      - percepta-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/whoami"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # MinIO - S3-compatible object storage for file artifacts
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: percepta-minio
+    ports:
+      - "9000:9000"    # API
+      - "9001:9001"    # Console
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ACCESS_KEY:?Error: MINIO_ACCESS_KEY must be set}"
+      MINIO_ROOT_PASSWORD: "${MINIO_SECRET_KEY:?Error: MINIO_SECRET_KEY must be set}"
+    volumes:
+      - minio-data:/data
+    networks:
+      - percepta-net
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Suricata IDS/IPS (optional - for network threat detection)
+  suricata:
+    image: jasonish/suricata:latest
+    container_name: percepta-suricata
+    privileged: true
+    ports:
+      - "6000:6000/udp"  # Eve alert socket
+    environment:
+      SURICATA_NETWORK: "${SURICATA_NETWORK:-192.168.0.0/16}"
+    volumes:
+      - ./config/suricata/suricata.yaml:/etc/suricata/suricata.yaml:ro
+      - ./ids/suricata/rules:/usr/local/etc/suricata/rules:ro
+      - suricata-logs:/var/log/suricata
+    networks:
+      - percepta-net
+    restart: unless-stopped
+    depends_on:
+      - percepta-server
+
+  # Redis - caching & session store (optional but recommended)
+  redis:
+    image: redis:7-alpine
+    container_name: percepta-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?Error: REDIS_PASSWORD must be set}", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    networks:
+      - percepta-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  clickhouse-data:
+    driver: local
+  minio-data:
+    driver: local
+  redis-data:
+    driver: local
+  percepta-logs:
+    driver: local
+  suricata-logs:
+    driver: local
+
+networks:
+  percepta-net:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: 1500
