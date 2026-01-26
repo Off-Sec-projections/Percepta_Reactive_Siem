@@ -1,0 +1,576 @@
+# ============================================================================
+# Percepta SIEM – Whitelist Exception Rules
+# ============================================================================
+# These rules suppress false positives from legitimate activities.
+# Includes: security scanning tools, admin operations, cloud services,
+# backup systems, CI/CD pipelines, and legitimate internal traffic.
+#
+# Exception Strategy:
+# 1. Whitelist legitimate tool User-Agents (Nessus, Qualys, etc.)
+# 2. Exclude internal network scanners from port scan detection
+# 3. Exclude backup/CI systems from brute-force detection
+# 4. Exclude cloud service IPs from C2/exfil detection
+# 5. Suppress known false positives (backup protocols, health checks)
+#
+# These rules SUPPRESS alerts using 'pass' action (evaluated before alert rules).
+# ============================================================================
+
+# ── Security Scanning Tools (Nessus, Qualys, etc.) ──────────────────────
+
+# Nessus and other authenticated scanners use aggressive scanning
+# but are legitimate vulnerability assessments
+pass tcp any any -> $HOME_NET any (msg:"WHITELIST: Nessus vulnerability scanner"; content:"Nessus"; http_user_agent; classtype:network-scan; sid:9950001; rev:1;)
+pass tcp any any -> $HOME_NET any (msg:"WHITELIST: Qualys scanner"; content:"Qualys"; http_user_agent; classtype:network-scan; sid:9950002; rev:1;)
+pass tcp any any -> $HOME_NET any (msg:"WHITELIST: Shodan Internet scan"; content:"Shodan"; http_user_agent; classtype:network-scan; sid:9950003; rev:1;)
+pass tcp any any -> $HOME_NET any (msg:"WHITELIST: OpenVAS vulnerability scanner"; content:"OpenVAS"; http_user_agent; classtype:network-scan; sid:9950004; rev:1;)
+
+# Legitimate scanner ports and protocols
+pass tcp 192.168.0.0/16 any -> any 1241 (msg:"WHITELIST: Nessus scanner communication"; flow:to_server; classtype:network-scan; sid:9950005; rev:1;)
+
+# ── Network Administration Tools ──────────────────────────────────────
+
+# These tools legitimately scan networks for management/monitoring
+pass tcp 192.168.0.0/16 any -> $HOME_NET any (msg:"WHITELIST: Internal network admin scanning"; flags:S,12; flow:to_server; threshold:type both, track by_src, count 300, seconds 10; classtype:network-scan; sid:9950010; rev:1;)
+
+# Ping sweeps by monitoring systems
+pass icmp 192.168.0.0/16 any -> any any (msg:"WHITELIST: Internal monitoring ICMP sweep"; itype:8; classtype:network-scan; sid:9950011; rev:1;)
+
+# Backup and disaster recovery systems
+pass tcp 192.168.0.0/16 any -> $HOME_NET 9100:9200 (msg:"WHITELIST: Backup system communication"; flow:to_server; classtype:network-scan; sid:9950012; rev:1;)
+
+# ── SSH/RDP Administration Exceptions ────────────────────────────────────
+
+# Internal admins performing legitimate RDP/SSH
+pass tcp 192.168.0.0/16 any -> $HOME_NET 22 (msg:"WHITELIST: Internal SSH admin"; flow:to_server,established; classtype:attempted-admin; sid:9950020; rev:1;)
+pass tcp 192.168.0.0/16 any -> $HOME_NET 3389 (msg:"WHITELIST: Internal RDP admin"; flow:to_server,established; classtype:attempted-admin; sid:9950021; rev:1;)
+
+# RDP/SSH from known admin workstations (customize for your environment)
+# Example: pass tcp [ADMIN_IP] any -> any 22 (msg:"WHITELIST: Admin SSH"; classtype:attempted-admin; sid:9950022; rev:1;)
+# Example: pass tcp [ADMIN_IP] any -> any 3389 (msg:"WHITELIST: Admin RDP"; classtype:attempted-admin; sid:9950023; rev:1;)
+
+# Known management tools
+pass tcp any any -> $HOME_NET 22 (msg:"WHITELIST: Ansible SSH management"; content:"Ansible"; http_user_agent; classtype:attempted-admin; sid:9950024; rev:1;)
+pass tcp any any -> $HOME_NET 3389 (msg:"WHITELIST: Puppet RDP management"; content:"Puppet"; http_user_agent; classtype:attempted-admin; sid:9950025; rev:1;)
+
+# ── Brute Force Exceptions ─────────────────────────────────────────────
+
+# Password managers and legitimate auth tools don't trigger brute force
+pass tcp any any -> $HOME_NET 22 (msg:"WHITELIST: SSH key-based auth (not brute force)"; flow:to_server,established; content:"openssh"; classtype:attempted-admin; sid:9950030; rev:1;)
+pass tcp any any -> $HOME_NET 22 (msg:"WHITELIST: SSH auth via Kerberos"; flow:to_server,established; content:"gssapi"; classtype:attempted-admin; sid:9950031; rev:1;)
+
+# Database backups (legitimate login patterns)
+pass tcp 192.168.0.0/16 any -> $HOME_NET 3306 (msg:"WHITELIST: Internal MySQL backup"; flow:to_server,established; classtype:attempted-admin; sid:9950032; rev:1;)
+pass tcp 192.168.0.0/16 any -> $HOME_NET 5432 (msg:"WHITELIST: Internal PostgreSQL backup"; flow:to_server,established; classtype:attempted-admin; sid:9950033; rev:1;)
+pass tcp 192.168.0.0/16 any -> $HOME_NET 1433 (msg:"WHITELIST: Internal MSSQL backup"; flow:to_server,established; classtype:attempted-admin; sid:9950034; rev:1;)
+
+# CI/CD systems (Jenkins, GitLab CI, etc.) — frequent auth attempts are normal
+pass tcp any any -> $HOME_NET any (msg:"WHITELIST: CI/CD pipeline auth"; content:"Jenkins"; http_user_agent; classtype:attempted-admin; sid:9950035; rev:1;)
+pass tcp any any -> $HOME_NET any (msg:"WHITELIST: GitLab CI/CD"; content:"gitlab"; http_user_agent; classtype:attempted-admin; sid:9950036; rev:1;)
+
+# ── Web Application Exceptions ───────────────────────────────────────────
+
+# Legitimate app health checks and internal requests often trigger web attack rules
+pass tcp 127.0.0.0/8 any -> any any (msg:"WHITELIST: Localhost health checks"; flow:to_server; classtype:policy-violation; sid:9950040; rev:1;)
+pass tcp 192.168.0.0/16 any -> any any (msg:"WHITELIST: Internal app health checks"; flow:to_server; classtype:policy-violation; sid:9950041; rev:1;)
+
+# Penetration testing (when authorized)
+# Uncomment and customize during authorized penetration tests:
+# pass tcp [PENTEST_IP] any -> $HOME_NET any (msg:"WHITELIST: Authorized pentest"; flow:to_server; classtype:policy-violation; sid:9950042; rev:1;)
+
+# Web vulnerability scanners (Burp Suite, OWASP ZAP, etc.) during authorized testing
+pass tcp any any -> $HOME_NET any (msg:"WHITELIST: Burp Suite active scanner"; content:"Burp"; http_user_agent; classtype:policy-violation; sid:9950043; rev:1;)
+pass tcp any any -> $HOME_NET any (msg:"WHITELIST: OWASP ZAP scanner"; content:"ZAP"; http_user_agent; classtype:policy-violation; sid:9950044; rev:1;)
+
+# ── Data Exfiltration & Large Transfer Exceptions ───────────────────────
+
+# Legitimate large data transfers (backups to cloud storage, logs, etc.)
+# Cloud storage and CDN services should not trigger exfil alerts
+pass tcp any any -> 52.0.0.0/8 any (msg:"WHITELIST: AWS data transfer"; flow:to_server,established; classtype:policy-violation; sid:9950050; rev:1;)
+pass tcp any any -> 13.0.0.0/8 any (msg:"WHITELIST: Azure data transfer"; flow:to_server,established; classtype:policy-violation; sid:9950051; rev:1;)
+pass tcp any any -> 199.36.0.0/10 any (msg:"WHITELIST: Google Cloud data transfer"; flow:to_server,established; classtype:policy-violation; sid:9950052; rev:1;)
+
+# Backup services (daily, legitimate large transfers)
+pass tcp $HOME_NET any -> any 443 (msg:"WHITELIST: Backblaze backup"; content:"backblaze"; http_user_agent; classtype:policy-violation; sid:9950053; rev:1;)
+pass tcp $HOME_NET any -> any 443 (msg:"WHITELIST: Carbonite backup"; content:"carbonite"; http_user_agent; classtype:policy-violation; sid:9950054; rev:1;)
+
+# Log forwarding to centralized SIEM (legitimate high-volume transfer)
+pass tcp $HOME_NET any -> any 514 (msg:"WHITELIST: Syslog forwarding"; flow:to_server,established; classtype:policy-violation; sid:9950055; rev:1;)
+pass tcp $HOME_NET any -> any 1514 (msg:"WHITELIST: TLS Syslog forwarding"; flow:to_server,established; classtype:policy-violation; sid:9950056; rev:1;)
+
+# ── DNS Exceptions ────────────────────────────────────────────────────────
+
+# Legitimate DNS queries should not trigger DNS abuse rules
+# Internal DNS queries
+pass udp $HOME_NET any -> 192.168.0.0/16 53 (msg:"WHITELIST: Internal DNS queries"; classtype:network-scan; sid:9950060; rev:1;)
+pass tcp $HOME_NET any -> 192.168.0.0/16 53 (msg:"WHITELIST: Internal DNS zone transfer"; flow:to_server; classtype:network-scan; sid:9950061; rev:1;)
+
+# Public DNS resolvers (legitimate, configured)
+pass udp $HOME_NET any -> 8.8.8.8 53 (msg:"WHITELIST: Google Public DNS"; classtype:network-scan; sid:9950062; rev:1;)
+pass udp $HOME_NET any -> 1.1.1.1 53 (msg:"WHITELIST: Cloudflare Public DNS"; classtype:network-scan; sid:9950063; rev:1;)
+
+# DNSSEC validation queries
+pass udp any any -> any 53 (msg:"WHITELIST: DNSSEC validation"; content:"|00 29|"; offset:12; classtype:network-scan; sid:9950064; rev:1;)
+
+# ── C2/Suspicious Outbound Exceptions ───────────────────────────────────
+
+# Legitimate cloud services and VPN providers
+pass tcp $HOME_NET any -> any 1194 (msg:"WHITELIST: OpenVPN"; flow:to_server; classtype:policy-violation; sid:9950070; rev:1;)
+pass tcp $HOME_NET any -> any 443 (msg:"WHITELIST: VPN provider (NordVPN)"; content:"openvpn"; classtype:policy-violation; sid:9950071; rev:1;)
+pass tcp $HOME_NET any -> any 443 (msg:"WHITELIST: Wireguard VPN"; content:"wireguard"; classtype:policy-violation; sid:9950072; rev:1;)
+
+# Cloud service APIs and SDKs (AWS, Azure, GCP)
+pass tcp $HOME_NET any -> any 443 (msg:"WHITELIST: AWS CLI"; content:"aws-cli"; http_user_agent; classtype:policy-violation; sid:9950073; rev:1;)
+pass tcp $HOME_NET any -> any 443 (msg:"WHITELIST: Azure SDK"; content:"Azure"; http_user_agent; classtype:policy-violation; sid:9950074; rev:1;)
+
+# Development and testing tools
+pass tcp $HOME_NET any -> any any (msg:"WHITELIST: curl download"; content:"curl"; http_user_agent; classtype:policy-violation; sid:9950075; rev:1;)
+pass tcp $HOME_NET any -> any any (msg:"WHITELIST: wget download"; content:"wget"; http_user_agent; classtype:policy-violation; sid:9950076; rev:1;)
+pass tcp $HOME_NET any -> any any (msg:"WHITELIST: Python package manager"; content:"python"; http_user_agent; classtype:policy-violation; sid:9950077; rev:1;)
+
+# ── Lateral Movement Exceptions ──────────────────────────────────────────
+
+# Legitimate internal lateral movement (admin tasks, backups)
+pass tcp $HOME_NET any -> $HOME_NET 445 (msg:"WHITELIST: Internal SMB admin"; flow:to_server,established; classtype:attempted-admin; sid:9950080; rev:1;)
+pass tcp $HOME_NET any -> $HOME_NET 139 (msg:"WHITELIST: Internal NetBIOS session"; flow:to_server; classtype:attempted-admin; sid:9950081; rev:1;)
+pass tcp $HOME_NET any -> $HOME_NET 389 (msg:"WHITELIST: Internal LDAP queries"; flow:to_server; classtype:attempted-admin; sid:9950082; rev:1;)
+pass tcp $HOME_NET any -> $HOME_NET 636 (msg:"WHITELIST: Internal LDAPS queries"; flow:to_server; classtype:attempted-admin; sid:9950083; rev:1;)
+
+# Backup systems performing enumeration
+pass tcp 192.168.0.0/16 any -> $HOME_NET 139:445 (msg:"WHITELIST: Backup system SMB enumeration"; flow:to_server; classtype:attempted-admin; sid:9950084; rev:1;)
+
+# ── Protocol Normalcy Exceptions ─────────────────────────────────────────
+
+# Known protocols on alternate ports (legitimate in some environments)
+pass tcp any any -> any 2222 (msg:"WHITELIST: SSH on alternate port 2222"; flow:to_server; content:"SSH-"; classtype:policy-violation; sid:9950090; rev:1;)
+pass tcp any any -> any 8022 (msg:"WHITELIST: SSH on alternate port 8022"; flow:to_server; content:"SSH-"; classtype:policy-violation; sid:9950091; rev:1;)
+
+# Redis/Memcached on internal networks only
+pass tcp 192.168.0.0/16 any -> 192.168.0.0/16 6379 (msg:"WHITELIST: Internal Redis"; flow:to_server; classtype:network-scan; sid:9950092; rev:1;)
+pass tcp 192.168.0.0/16 any -> 192.168.0.0/16 11211 (msg:"WHITELIST: Internal Memcached"; flow:to_server; classtype:network-scan; sid:9950093; rev:1;)
+
+# ── False Positive Adjustments ───────────────────────────────────────────
+
+# Legitimate file downloads with common tools
+pass tcp $HOME_NET any -> any any (msg:"WHITELIST: Microsoft delivery optimization"; content:"dosvcs"; http_user_agent; classtype:policy-violation; sid:9950100; rev:1;)
+pass tcp $HOME_NET any -> any any (msg:"WHITELIST: Windows Update"; content:"WinHttp"; http_user_agent; classtype:policy-violation; sid:9950101; rev:1;)
+
+# ============================================================================
+# Instructions for Customization:
+# ============================================================================
+#
+# 1. Review the rules above — some are generic, others need customization
+#
+# 2. Replace common IPs/ranges:
+#    - $HOME_NET: Your internal network (usually 192.168.0.0/16 or 10.0.0.0/8)
+#    - [ADMIN_IP]: Workstation IPs for your admin team
+#    - [PENTEST_IP]: Only uncomment during authorized penetration tests
+#
+# 3. Add specific tool IPs/users:
+#    - If your Nessus scanner is at 192.168.1.100, add:
+#      pass tcp 192.168.1.100 any -> any any (msg:"WHITELIST: Nessus scanner"; sid:9950XXX; rev:1;)
+#
+# 4. Test thoroughly:
+#    - Review false_positive reports in Percepta dashboard
+#    - Temporarily set these rules to 'noalert' to see what they exclude
+#    - Once validated, change to 'pass' to suppress alerts
+#
+# 5. Monitor effectiveness:
+#    - Track reduction in false positives
+#    - Ensure security detections are still firing for real threats
+#    - Adjust thresholds if too many alerts still occur
+#
+# ============================================================================
+# ============================================================================
+# Percepta SIEM – Custom Suricata IDS/IPS Rules
+# ============================================================================
+# Managed via the Percepta dashboard (Settings → Rules → Rule Editor).
+# These rules are synced to agents when PERCEPTA_SURICATA_RULES_URL is set.
+#
+# SID ranges:
+#   9900001 – 9900199   Network reconnaissance / scanning
+#   9900200 – 9900399   Brute-force / credential attacks
+#   9900400 – 9900599   Command & Control (C2) indicators
+#   9900600 – 9900799   Lateral movement
+#   9900800 – 9900999   Data exfiltration / data-loss
+#   9901000 – 9901199   Malware / trojan indicators
+#   9901200 – 9901399   Policy violations / misuse
+#   9901400 – 9901599   Web attacks (SQLi, XSS, RCE, path traversal)
+#   9901600 – 9901799   DNS abuse
+#   9901800 – 9901999   Crypto-mining / cryptojacking
+#   9902000 – 9902199   Protocol anomalies
+#   9902200 – 9902399   TLS / certificate anomalies
+# ============================================================================
+
+# ── Network Reconnaissance / Scanning ────────────────────────────────────
+
+alert tcp any any -> $HOME_NET any (msg:"PERCEPTA TCP SYN port scan (horizontal)"; flags:S,12; threshold:type both, track by_src, count 25, seconds 10; classtype:network-scan; sid:9900001; rev:3;)
+
+alert tcp any any -> $HOME_NET any (msg:"PERCEPTA TCP SYN port scan (vertical)"; flags:S,12; threshold:type both, track by_src, count 30, seconds 5; classtype:network-scan; sid:9900002; rev:2;)
+
+alert icmp any any -> $HOME_NET any (msg:"PERCEPTA ICMP sweep detected"; itype:8; threshold:type both, track by_src, count 15, seconds 10; classtype:network-scan; sid:9900003; rev:2;)
+
+alert tcp any any -> $HOME_NET 22 (msg:"PERCEPTA SSH version scan attempt"; flow:to_server; content:"SSH-"; depth:4; threshold:type both, track by_src, count 5, seconds 30; classtype:network-scan; sid:9900004; rev:2;)
+
+alert tcp any any -> $HOME_NET 445 (msg:"PERCEPTA SMB enumeration scan"; flow:to_server,established; content:"|ff|SMB"; depth:8; threshold:type both, track by_src, count 10, seconds 20; classtype:network-scan; sid:9900005; rev:2;)
+
+alert tcp any any -> $HOME_NET 139 (msg:"PERCEPTA NetBIOS session scan"; flow:to_server; threshold:type both, track by_src, count 10, seconds 15; classtype:network-scan; sid:9900006; rev:1;)
+
+alert udp any any -> $HOME_NET 161 (msg:"PERCEPTA SNMP community string brute force"; content:"public"; threshold:type both, track by_src, count 10, seconds 30; classtype:network-scan; sid:9900007; rev:2;)
+
+alert tcp any any -> $HOME_NET 3389 (msg:"PERCEPTA RDP connection scan"; flow:to_server; threshold:type both, track by_src, count 5, seconds 20; classtype:network-scan; sid:9900008; rev:2;)
+
+alert tcp any any -> $HOME_NET 5900:5910 (msg:"PERCEPTA VNC port scan"; flow:to_server; threshold:type both, track by_src, count 5, seconds 20; classtype:network-scan; sid:9900009; rev:1;)
+
+alert tcp any any -> $HOME_NET 23 (msg:"PERCEPTA Telnet scan"; flow:to_server; threshold:type both, track by_src, count 5, seconds 20; classtype:network-scan; sid:9900010; rev:1;)
+
+alert tcp any any -> $HOME_NET 21 (msg:"PERCEPTA FTP scan"; flow:to_server; threshold:type both, track by_src, count 5, seconds 20; classtype:network-scan; sid:9900011; rev:1;)
+
+alert tcp any any -> $HOME_NET 1433 (msg:"PERCEPTA MSSQL port scan"; flow:to_server; threshold:type both, track by_src, count 5, seconds 20; classtype:network-scan; sid:9900012; rev:1;)
+
+alert tcp any any -> $HOME_NET 3306 (msg:"PERCEPTA MySQL port scan"; flow:to_server; threshold:type both, track by_src, count 5, seconds 20; classtype:network-scan; sid:9900013; rev:1;)
+
+alert tcp any any -> $HOME_NET 5432 (msg:"PERCEPTA PostgreSQL port scan"; flow:to_server; threshold:type both, track by_src, count 5, seconds 20; classtype:network-scan; sid:9900014; rev:1;)
+
+alert tcp any any -> $HOME_NET 27017 (msg:"PERCEPTA MongoDB port scan"; flow:to_server; threshold:type both, track by_src, count 5, seconds 20; classtype:network-scan; sid:9900015; rev:1;)
+
+alert tcp any any -> $HOME_NET 6379 (msg:"PERCEPTA Redis port scan"; flow:to_server; threshold:type both, track by_src, count 5, seconds 20; classtype:network-scan; sid:9900016; rev:1;)
+
+alert tcp any any -> $HOME_NET 9200 (msg:"PERCEPTA Elasticsearch port scan"; flow:to_server; threshold:type both, track by_src, count 5, seconds 20; classtype:network-scan; sid:9900017; rev:1;)
+
+alert tcp any any -> $HOME_NET 8080 (msg:"PERCEPTA HTTP alt port scan"; flow:to_server; threshold:type both, track by_src, count 10, seconds 20; classtype:network-scan; sid:9900018; rev:1;)
+
+alert tcp any any -> $HOME_NET 8443 (msg:"PERCEPTA HTTPS alt port scan"; flow:to_server; threshold:type both, track by_src, count 10, seconds 20; classtype:network-scan; sid:9900019; rev:1;)
+
+alert udp any any -> $HOME_NET 53 (msg:"PERCEPTA DNS zone transfer attempt (UDP)"; content:"|00 fc|"; offset:12; classtype:network-scan; sid:9900020; rev:1;)
+
+alert tcp any any -> $HOME_NET 53 (msg:"PERCEPTA DNS zone transfer attempt (TCP AXFR)"; flow:to_server,established; content:"|00 fc|"; classtype:network-scan; sid:9900021; rev:2;)
+
+alert tcp any any -> $HOME_NET 389 (msg:"PERCEPTA LDAP enumeration scan"; flow:to_server; threshold:type both, track by_src, count 5, seconds 20; classtype:network-scan; sid:9900022; rev:1;)
+
+alert tcp any any -> $HOME_NET 636 (msg:"PERCEPTA LDAPS enumeration scan"; flow:to_server; threshold:type both, track by_src, count 5, seconds 20; classtype:network-scan; sid:9900023; rev:1;)
+
+alert tcp any any -> $HOME_NET 88 (msg:"PERCEPTA Kerberos port scan"; flow:to_server; threshold:type both, track by_src, count 5, seconds 20; classtype:network-scan; sid:9900024; rev:1;)
+
+alert tcp any any -> $HOME_NET 111 (msg:"PERCEPTA RPC portmapper scan"; flow:to_server; threshold:type both, track by_src, count 5, seconds 15; classtype:network-scan; sid:9900025; rev:1;)
+
+alert tcp any any -> $HOME_NET 2049 (msg:"PERCEPTA NFS service scan"; flow:to_server; threshold:type both, track by_src, count 5, seconds 15; classtype:network-scan; sid:9900026; rev:1;)
+
+alert tcp any any -> $HOME_NET any (msg:"PERCEPTA TCP XMAS scan detected"; flags:FPU; classtype:network-scan; sid:9900030; rev:2;)
+
+alert tcp any any -> $HOME_NET any (msg:"PERCEPTA TCP NULL scan detected"; flags:0; classtype:network-scan; sid:9900031; rev:2;)
+
+alert tcp any any -> $HOME_NET any (msg:"PERCEPTA TCP FIN scan detected"; flags:F,12; threshold:type both, track by_src, count 20, seconds 10; classtype:network-scan; sid:9900032; rev:2;)
+
+# ── Brute-Force / Credential Attacks ─────────────────────────────────────
+
+alert tcp any any -> $HOME_NET 22 (msg:"PERCEPTA SSH brute-force indicator"; flow:to_server,established; threshold:type both, track by_src, count 10, seconds 60; classtype:attempted-admin; sid:9900200; rev:3;)
+
+alert tcp any any -> $HOME_NET 22 (msg:"PERCEPTA SSH rapid auth failures"; flow:to_server,established; content:"Permission denied"; threshold:type both, track by_src, count 5, seconds 30; classtype:attempted-admin; sid:9900201; rev:2;)
+
+alert tcp any any -> $HOME_NET 3389 (msg:"PERCEPTA RDP brute-force indicator"; flow:to_server,established; threshold:type both, track by_src, count 8, seconds 60; classtype:attempted-admin; sid:9900202; rev:2;)
+
+alert tcp any any -> $HOME_NET 21 (msg:"PERCEPTA FTP brute-force indicator"; flow:to_server,established; content:"530 "; threshold:type both, track by_src, count 5, seconds 60; classtype:attempted-admin; sid:9900203; rev:2;)
+
+alert tcp any any -> $HOME_NET 23 (msg:"PERCEPTA Telnet brute-force indicator"; flow:to_server,established; threshold:type both, track by_src, count 8, seconds 60; classtype:attempted-admin; sid:9900204; rev:1;)
+
+alert tcp any any -> $HOME_NET 110 (msg:"PERCEPTA POP3 brute-force indicator"; flow:to_server,established; content:"-ERR"; threshold:type both, track by_src, count 5, seconds 60; classtype:attempted-admin; sid:9900205; rev:1;)
+
+alert tcp any any -> $HOME_NET 143 (msg:"PERCEPTA IMAP brute-force indicator"; flow:to_server,established; content:"NO LOGIN"; threshold:type both, track by_src, count 5, seconds 60; classtype:attempted-admin; sid:9900206; rev:1;)
+
+alert tcp any any -> $HOME_NET 25 (msg:"PERCEPTA SMTP AUTH brute-force indicator"; flow:to_server,established; content:"535 "; threshold:type both, track by_src, count 5, seconds 60; classtype:attempted-admin; sid:9900207; rev:1;)
+
+alert tcp any any -> $HOME_NET 1433 (msg:"PERCEPTA MSSQL login brute-force"; flow:to_server,established; content:"Login failed"; threshold:type both, track by_src, count 5, seconds 60; classtype:attempted-admin; sid:9900208; rev:1;)
+
+alert tcp any any -> $HOME_NET 3306 (msg:"PERCEPTA MySQL login brute-force"; flow:to_server,established; content:"Access denied"; threshold:type both, track by_src, count 5, seconds 60; classtype:attempted-admin; sid:9900209; rev:1;)
+
+alert tcp any any -> $HOME_NET 5432 (msg:"PERCEPTA PostgreSQL login brute-force"; flow:to_server,established; content:"authentication failed"; threshold:type both, track by_src, count 5, seconds 60; classtype:attempted-admin; sid:9900210; rev:1;)
+
+alert tcp any any -> $HOME_NET 445 (msg:"PERCEPTA SMB login brute-force"; flow:to_server,established; threshold:type both, track by_src, count 10, seconds 60; classtype:attempted-admin; sid:9900211; rev:1;)
+
+alert tcp any any -> $HOME_NET 80 (msg:"PERCEPTA HTTP Basic auth brute-force"; flow:to_server,established; content:"Authorization|3a| Basic"; nocase; threshold:type both, track by_src, count 15, seconds 60; classtype:attempted-admin; sid:9900212; rev:2;)
+
+alert tcp any any -> $HOME_NET 443 (msg:"PERCEPTA HTTPS login form brute-force"; flow:to_server,established; threshold:type both, track by_src, count 20, seconds 60; classtype:attempted-admin; sid:9900213; rev:1;)
+
+alert tcp any any -> $HOME_NET 88 (msg:"PERCEPTA Kerberos pre-auth brute-force (AS-REQ)"; flow:to_server; content:"|a1 03 02 01 05|"; threshold:type both, track by_src, count 10, seconds 60; classtype:attempted-admin; sid:9900214; rev:1;)
+
+alert tcp any any -> $HOME_NET 389 (msg:"PERCEPTA LDAP bind brute-force"; flow:to_server,established; content:"|30|"; depth:1; content:"|60|"; within:10; threshold:type both, track by_src, count 10, seconds 60; classtype:attempted-admin; sid:9900215; rev:1;)
+
+alert tcp any any -> $HOME_NET 27017 (msg:"PERCEPTA MongoDB auth brute-force"; flow:to_server,established; content:"authenticate"; nocase; threshold:type both, track by_src, count 5, seconds 60; classtype:attempted-admin; sid:9900216; rev:1;)
+
+alert tcp any any -> $HOME_NET 6379 (msg:"PERCEPTA Redis AUTH brute-force"; flow:to_server,established; content:"AUTH "; threshold:type both, track by_src, count 10, seconds 60; classtype:attempted-admin; sid:9900217; rev:1;)
+
+# ── Command & Control (C2) Indicators ────────────────────────────────────
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA Suspicious periodic C2-like beacon"; flow:established,to_server; threshold:type both, track by_src, count 30, seconds 300; classtype:trojan-activity; sid:9900400; rev:2;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 4444 (msg:"PERCEPTA Outbound to common C2 port 4444 (Metasploit)"; flow:to_server,established; classtype:trojan-activity; sid:9900401; rev:2;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 5555 (msg:"PERCEPTA Outbound to common C2 port 5555"; flow:to_server,established; classtype:trojan-activity; sid:9900402; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 8888 (msg:"PERCEPTA Outbound to common C2 port 8888"; flow:to_server,established; classtype:trojan-activity; sid:9900403; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 1234 (msg:"PERCEPTA Outbound to common C2 port 1234"; flow:to_server,established; classtype:trojan-activity; sid:9900404; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 9999 (msg:"PERCEPTA Outbound to common C2 port 9999"; flow:to_server,established; classtype:trojan-activity; sid:9900405; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 6666:6669 (msg:"PERCEPTA Outbound IRC connection (common C2 channel)"; flow:to_server,established; classtype:trojan-activity; sid:9900406; rev:2;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA Cobalt Strike default beacon traffic"; flow:established,to_server; content:"|00 00 be ef|"; depth:4; classtype:trojan-activity; sid:9900407; rev:2;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA HTTP C2 beacon short interval check-in"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/"; pcre:"/^\/[a-zA-Z0-9]{4,8}$/"; threshold:type both, track by_src, count 20, seconds 120; classtype:trojan-activity; sid:9900409; rev:2;)
+
+alert dns $HOME_NET any -> any any (msg:"PERCEPTA DNS C2 channel — high frequency queries"; dns.query; content:"."; threshold:type both, track by_src, count 50, seconds 60; classtype:trojan-activity; sid:9900410; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 9001 (msg:"PERCEPTA Outbound to Tor exit node port 9001"; flow:to_server,established; classtype:policy-violation; sid:9900411; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 9050 (msg:"PERCEPTA Outbound SOCKS proxy to Tor (9050)"; flow:to_server; classtype:policy-violation; sid:9900412; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 9150 (msg:"PERCEPTA Outbound to Tor Browser SOCKS (9150)"; flow:to_server; classtype:policy-violation; sid:9900413; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA Possible Meterpreter reverse HTTP stage"; flow:established,to_server; http.uri; content:"/"; pcre:"/^\/[A-Za-z0-9_-]{4}$/"; http.header; content:"Accept: */*"; classtype:trojan-activity; sid:9900414; rev:2;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET 443 (msg:"PERCEPTA Self-signed cert outbound TLS with suspect CN"; flow:to_server,established; tls.subject; content:"CN=localhost"; classtype:trojan-activity; sid:9900415; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA Sliver C2 HTTP implant indicator"; flow:established,to_server; http.uri; pcre:"/^\/(api|assets|js|css)\/[a-f0-9]{8,32}$/"; http.header; content:"Accept: application/json"; classtype:trojan-activity; sid:9900417; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 53 (msg:"PERCEPTA DNS over TCP to external (possible C2 tunnel)"; flow:to_server,established; classtype:trojan-activity; sid:9900418; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 2222 (msg:"PERCEPTA Outbound SSH on alt port 2222 (C2/tunnel)"; flow:to_server,established; classtype:policy-violation; sid:9900419; rev:1;)
+
+# ── Lateral Movement ─────────────────────────────────────────────────────
+
+alert tcp $HOME_NET any -> $HOME_NET 445 (msg:"PERCEPTA Potential SMB lateral movement"; flow:to_server,established; content:"|ff|SMB"; depth:8; threshold:type both, track by_src, count 5, seconds 120; classtype:attempted-admin; sid:9900600; rev:3;)
+
+alert tcp $HOME_NET any -> $HOME_NET 135 (msg:"PERCEPTA DCE/RPC lateral movement via WMI"; flow:to_server,established; content:"|05 00|"; depth:2; classtype:attempted-admin; sid:9900601; rev:2;)
+
+alert tcp $HOME_NET any -> $HOME_NET 3389 (msg:"PERCEPTA Internal RDP lateral movement"; flow:to_server,established; threshold:type both, track by_src, count 3, seconds 300; classtype:attempted-admin; sid:9900602; rev:2;)
+
+alert tcp $HOME_NET any -> $HOME_NET 5985 (msg:"PERCEPTA WinRM lateral movement (HTTP)"; flow:to_server,established; content:"POST"; content:"/wsman"; classtype:attempted-admin; sid:9900603; rev:2;)
+
+alert tcp $HOME_NET any -> $HOME_NET 5986 (msg:"PERCEPTA WinRM lateral movement (HTTPS)"; flow:to_server,established; classtype:attempted-admin; sid:9900604; rev:1;)
+
+alert tcp $HOME_NET any -> $HOME_NET 22 (msg:"PERCEPTA Internal SSH lateral movement"; flow:to_server,established; threshold:type both, track by_src, count 5, seconds 300; classtype:attempted-admin; sid:9900605; rev:2;)
+
+alert tcp $HOME_NET any -> $HOME_NET 445 (msg:"PERCEPTA PsExec-style service installation over SMB"; flow:to_server,established; content:"|ff|SMB"; content:"PSEXESVC"; nocase; classtype:attempted-admin; sid:9900606; rev:2;)
+
+alert tcp $HOME_NET any -> $HOME_NET 139 (msg:"PERCEPTA Internal NetBIOS session (lateral)"; flow:to_server,established; threshold:type both, track by_src, count 3, seconds 120; classtype:attempted-admin; sid:9900607; rev:1;)
+
+alert tcp $HOME_NET any -> $HOME_NET 445 (msg:"PERCEPTA SMB admin share access (IPC$)"; flow:to_server,established; content:"|ff|SMB"; content:"\\IPC$"; nocase; classtype:attempted-admin; sid:9900608; rev:1;)
+
+alert tcp $HOME_NET any -> $HOME_NET 389 (msg:"PERCEPTA Internal LDAP queries (recon/lateral)"; flow:to_server,established; threshold:type both, track by_src, count 10, seconds 60; classtype:attempted-recon; sid:9900609; rev:1;)
+
+alert tcp $HOME_NET any -> $HOME_NET 88 (msg:"PERCEPTA Kerberoasting — internal TGS-REQ spike"; flow:to_server; content:"|a1 03 02 01 05|"; threshold:type both, track by_src, count 15, seconds 60; classtype:attempted-admin; sid:9900610; rev:1;)
+
+alert tcp $HOME_NET any -> $HOME_NET 1433 (msg:"PERCEPTA Internal MSSQL lateral movement"; flow:to_server,established; threshold:type both, track by_src, count 3, seconds 120; classtype:attempted-admin; sid:9900611; rev:1;)
+
+alert tcp $HOME_NET any -> $HOME_NET 5432 (msg:"PERCEPTA Internal PostgreSQL lateral movement"; flow:to_server,established; threshold:type both, track by_src, count 3, seconds 120; classtype:attempted-admin; sid:9900612; rev:1;)
+
+# ── Data Exfiltration / Data Loss ────────────────────────────────────────
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA Large outbound transfer — possible data exfiltration"; flow:established,to_server; dsize:>10000; threshold:type both, track by_src, count 50, seconds 60; classtype:bad-unknown; sid:9900800; rev:2;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET [20,21] (msg:"PERCEPTA Outbound FTP data transfer"; flow:to_server,established; classtype:bad-unknown; sid:9900802; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA HTTP file upload to cloud storage"; flow:established,to_server; http.method; content:"PUT"; http.host; pcre:"/(drive\.google|dropbox|mega\.nz|onedrive\.live|s3\.amazonaws)/i"; classtype:bad-unknown; sid:9900804; rev:2;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA HTTP POST to file-sharing site"; flow:established,to_server; http.method; content:"POST"; http.host; pcre:"/(wetransfer|sendspace|filemail|transfernow|gofile\.io)/i"; classtype:bad-unknown; sid:9900805; rev:1;)
+
+alert udp $HOME_NET any -> $EXTERNAL_NET 53 (msg:"PERCEPTA DNS exfil — abnormally long subdomain labels"; dns.query; pcre:"/^[a-zA-Z0-9]{40,}\./"; classtype:bad-unknown; sid:9900807; rev:2;)
+
+alert udp $HOME_NET any -> $EXTERNAL_NET 53 (msg:"PERCEPTA DNS exfil — high volume queries"; dns.query; content:"."; threshold:type both, track by_src, count 100, seconds 60; classtype:bad-unknown; sid:9900808; rev:1;)
+
+# ── Malware / Trojan Indicators ──────────────────────────────────────────
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA HTTP PE/EXE download"; flow:established,to_client; file_data; content:"MZ"; depth:2; content:"This program"; within:200; classtype:trojan-activity; sid:9901000; rev:3;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA HTTP ELF binary download"; flow:established,to_client; file_data; content:"|7f|ELF"; depth:4; classtype:trojan-activity; sid:9901001; rev:2;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA HTTP suspicious PowerShell download cradle"; flow:established,to_server; http.uri; pcre:"/\.(ps1|psm1|psd1)$/i"; classtype:trojan-activity; sid:9901002; rev:2;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA HTTP VBS/VBA script download"; flow:established,to_client; file_data; content:"CreateObject"; nocase; classtype:trojan-activity; sid:9901003; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA HTTP HTA file download"; flow:established,to_client; file_data; content:"<HTA:APPLICATION"; nocase; classtype:trojan-activity; sid:9901004; rev:2;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA Suspicious .scr .pif download"; flow:established,to_server; http.uri; pcre:"/\.(scr|pif|com|bat|cmd)$/i"; classtype:trojan-activity; sid:9901005; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA Suspicious DLL download over HTTP"; flow:established,to_server; http.uri; pcre:"/\.dll$/i"; classtype:trojan-activity; sid:9901006; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA Office macro-enabled document download"; flow:established,to_server; http.uri; pcre:"/\.(xlsm|xlsb|docm|dotm|pptm)$/i"; classtype:trojan-activity; sid:9901007; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 5552 (msg:"PERCEPTA Known RAT default port — njRAT 5552"; flow:to_server; classtype:trojan-activity; sid:9901010; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 1604 (msg:"PERCEPTA Known RAT default port — DarkComet 1604"; flow:to_server; classtype:trojan-activity; sid:9901011; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 4782 (msg:"PERCEPTA Known RAT default port — Quasar RAT 4782"; flow:to_server; classtype:trojan-activity; sid:9901012; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 6606 (msg:"PERCEPTA Known RAT default port — AsyncRAT 6606"; flow:to_server; classtype:trojan-activity; sid:9901013; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 2404 (msg:"PERCEPTA Known RAT default port — RemcosRAT 2404"; flow:to_server; classtype:trojan-activity; sid:9901014; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA Webshell interaction pattern — cmd parameter"; flow:established,to_server; http.uri; pcre:"/[?&](cmd|exec|cmd64|e)=/i"; classtype:web-application-attack; sid:9901020; rev:2;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA Cobalt Strike stager HTTP header pattern"; flow:established,to_server; http.uri; pcre:"/^\/[A-Za-z0-9]{4}$/"; http.header; content:"Accept: */*"; classtype:trojan-activity; sid:9901021; rev:1;)
+
+# ── Policy Violations / Misuse ───────────────────────────────────────────
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 1080 (msg:"PERCEPTA Outbound SOCKS proxy usage"; flow:to_server; classtype:policy-violation; sid:9901200; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 3128 (msg:"PERCEPTA Outbound HTTP proxy (Squid default)"; flow:to_server; classtype:policy-violation; sid:9901201; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 8118 (msg:"PERCEPTA Outbound Privoxy proxy port"; flow:to_server; classtype:policy-violation; sid:9901202; rev:1;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA TLS connection to VPN provider"; tls.sni; pcre:"/(nordvpn|expressvpn|mullvad|protonvpn|surfshark|ipvanish|cyberghost)/i"; classtype:policy-violation; sid:9901203; rev:2;)
+
+alert dns $HOME_NET any -> any any (msg:"PERCEPTA DNS query for anonymizer service"; dns.query; pcre:"/(vpngate|hide\.me|anonymizer|torproject|proxifier)/i"; classtype:policy-violation; sid:9901204; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA HTTP request to paste site (data exfil risk)"; flow:established,to_server; http.host; pcre:"/(pastebin\.com|paste\.ee|hastebin|ghostbin|dpaste|controlc\.com)/i"; classtype:policy-violation; sid:9901205; rev:2;)
+
+alert dns $HOME_NET any -> any any (msg:"PERCEPTA DNS query to dynamic DNS provider"; dns.query; pcre:"/(duckdns\.org|no-ip\.|ddns\.net|dynu\.com|freedns\.afraid|changeip\.com)/i"; classtype:policy-violation; sid:9901206; rev:2;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA Outbound ngrok tunnel connection"; flow:to_server,established; tls.sni; content:"ngrok.io"; classtype:policy-violation; sid:9901207; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA Outbound Cloudflare tunnel (cloudflared)"; flow:to_server,established; tls.sni; content:"trycloudflare.com"; classtype:policy-violation; sid:9901208; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA HTTP request to URL shortener"; flow:established,to_server; http.host; pcre:"/(bit\.ly|tinyurl|is\.gd|t\.co|rb\.gy|cutt\.ly|tiny\.cc)/i"; classtype:policy-violation; sid:9901209; rev:1;)
+
+alert tcp any any -> $HOME_NET 6379 (msg:"PERCEPTA Redis exposed to external network"; flow:to_server; classtype:policy-violation; sid:9901210; rev:1;)
+
+alert tcp any any -> $HOME_NET 27017 (msg:"PERCEPTA MongoDB exposed to external network"; flow:to_server; classtype:policy-violation; sid:9901211; rev:1;)
+
+alert tcp any any -> $HOME_NET 9200 (msg:"PERCEPTA Elasticsearch exposed to external network"; flow:to_server; classtype:policy-violation; sid:9901212; rev:1;)
+
+alert tcp any any -> $HOME_NET 11211 (msg:"PERCEPTA Memcached exposed to external network"; flow:to_server; classtype:policy-violation; sid:9901213; rev:1;)
+
+# ── Web Attacks (SQLi, XSS, RCE, Path Traversal) ────────────────────────
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA SQL injection attempt — UNION SELECT"; flow:established,to_server; http.uri; content:"union"; nocase; content:"select"; nocase; distance:0; classtype:web-application-attack; sid:9901400; rev:3;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA SQL injection attempt — OR 1=1"; flow:established,to_server; http.uri; pcre:"/(\bor\b|\band\b)\s*[\d'\"]+\s*=\s*[\d'\"]+/i"; classtype:web-application-attack; sid:9901401; rev:2;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA SQL injection — single quote probe"; flow:established,to_server; http.uri; content:"'"; content:"--"; distance:0; classtype:web-application-attack; sid:9901402; rev:2;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA SQL injection — comment injection"; flow:established,to_server; http.uri; pcre:"/(%27|').*(--%20|%23|#|\/\*)/i"; classtype:web-application-attack; sid:9901403; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA SQL injection — SLEEP/BENCHMARK time-based"; flow:established,to_server; http.uri; pcre:"/(sleep|benchmark|waitfor|delay|pg_sleep)\s*\(/i"; classtype:web-application-attack; sid:9901404; rev:2;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA Reflected XSS attempt — script tag in URI"; flow:established,to_server; http.uri; content:"<script"; nocase; classtype:web-application-attack; sid:9901410; rev:2;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA XSS attempt — event handler in parameter"; flow:established,to_server; http.uri; pcre:"/(on(load|error|click|mouseover|focus|blur|submit|change))\s*=/i"; classtype:web-application-attack; sid:9901411; rev:2;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA XSS attempt — javascript: URI scheme"; flow:established,to_server; http.uri; content:"javascript:"; nocase; classtype:web-application-attack; sid:9901412; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA XSS attempt — SVG onload"; flow:established,to_server; http.uri; content:"<svg"; nocase; content:"onload"; nocase; distance:0; classtype:web-application-attack; sid:9901413; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA Path traversal attempt — dot-dot-slash"; flow:established,to_server; http.uri; content:"../"; pcre:"/(\.\.(\/|%2[fF])){2,}/"; classtype:web-application-attack; sid:9901420; rev:3;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA Path traversal — /etc/passwd access attempt"; flow:established,to_server; http.uri; content:"/etc/passwd"; classtype:web-application-attack; sid:9901421; rev:2;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA Path traversal — /etc/shadow access attempt"; flow:established,to_server; http.uri; content:"/etc/shadow"; classtype:web-application-attack; sid:9901422; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA Path traversal — Windows boot.ini"; flow:established,to_server; http.uri; content:"boot.ini"; nocase; classtype:web-application-attack; sid:9901423; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA Path traversal — win.ini access"; flow:established,to_server; http.uri; content:"win.ini"; nocase; classtype:web-application-attack; sid:9901424; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA RCE attempt — OS command injection via URI"; flow:established,to_server; http.uri; pcre:"/[;|`\$\(].*\b(cat|ls|id|whoami|uname|ping|curl|wget|nc)\b/"; classtype:web-application-attack; sid:9901430; rev:2;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA RCE attempt — PHP code injection"; flow:established,to_server; http.uri; pcre:"/(eval|system|exec|passthru|shell_exec|popen|proc_open)\s*\(/i"; classtype:web-application-attack; sid:9901431; rev:2;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA RCE attempt — Java OGNL injection (Struts)"; flow:established,to_server; http.uri; content:"%{"; content:"}"; distance:0; classtype:web-application-attack; sid:9901432; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA RCE attempt — Log4Shell JNDI"; flow:established,to_server; http.uri; content:"${jndi:"; nocase; classtype:web-application-attack; sid:9901433; rev:3;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA RCE — Log4Shell JNDI in header"; flow:established,to_server; http.header; content:"${jndi:"; nocase; classtype:web-application-attack; sid:9901434; rev:2;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA RCE attempt — Server-Side Template Injection"; flow:established,to_server; http.uri; pcre:"/\{\{.*?(config|self\.__class__|os\.popen)/i"; classtype:web-application-attack; sid:9901435; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA Web scanner — Nikto User-Agent"; flow:established,to_server; http.user_agent; content:"Nikto"; nocase; classtype:web-application-attack; sid:9901440; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA Web scanner — sqlmap User-Agent"; flow:established,to_server; http.user_agent; content:"sqlmap"; nocase; classtype:web-application-attack; sid:9901441; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA Web scanner — Nessus User-Agent"; flow:established,to_server; http.user_agent; content:"Nessus"; nocase; classtype:web-application-attack; sid:9901442; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA Web scanner — DirBuster/Gobuster"; flow:established,to_server; http.user_agent; pcre:"/(dirbuster|gobuster|feroxbuster|ffuf|wfuzz)/i"; classtype:web-application-attack; sid:9901443; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA Shellshock attempt (CVE-2014-6271)"; flow:established,to_server; http.header; content:"() {"; classtype:web-application-attack; sid:9901444; rev:2;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA SSRF — request to internal IP range"; flow:established,to_server; http.uri; pcre:"/(127\.0\.0\.1|0\.0\.0\.0|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.169\.254|localhost)/i"; classtype:web-application-attack; sid:9901445; rev:2;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA SSRF — AWS metadata endpoint access"; flow:established,to_server; http.uri; content:"169.254.169.254"; classtype:web-application-attack; sid:9901446; rev:1;)
+
+# ── DNS Abuse ────────────────────────────────────────────────────────────
+
+alert udp $HOME_NET any -> any 53 (msg:"PERCEPTA Potential DNS tunneling — high query rate"; threshold:type both, track by_src, count 100, seconds 60; classtype:bad-unknown; sid:9901600; rev:2;)
+
+alert udp $HOME_NET any -> any 53 (msg:"PERCEPTA DNS tunneling — long subdomain encoding"; dns.query; pcre:"/^[a-zA-Z0-9+/=]{32,}\.[a-zA-Z0-9.-]+$/"; classtype:bad-unknown; sid:9901601; rev:2;)
+
+alert dns $HOME_NET any -> any any (msg:"PERCEPTA DNS query for known malware domain pattern"; dns.query; pcre:"/^[a-z0-9]{12,}\.(xyz|top|club|buzz|info|gq|tk|ml|cf|ga)$/"; classtype:trojan-activity; sid:9901602; rev:2;)
+
+alert dns $HOME_NET any -> any any (msg:"PERCEPTA DNS query to DGA-like domain"; dns.query; pcre:"/^[bcdfghjklmnpqrstvwxz]{5,}\d{2,}\./"; classtype:trojan-activity; sid:9901603; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"PERCEPTA DNS query to known phishing TLD pattern"; dns.query; pcre:"/\.(xyz|top|club|buzz|wang|win|gq|tk|ml|cf|ga)$/"; threshold:type both, track by_src, count 5, seconds 60; classtype:bad-unknown; sid:9901604; rev:1;)
+
+alert udp $HOME_NET any -> !$HOME_NET 53 (msg:"PERCEPTA DNS to external resolver (not local DNS)"; threshold:type both, track by_src, count 20, seconds 60; classtype:policy-violation; sid:9901605; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"PERCEPTA DNS query to Interactsh OOB testing tool"; dns.query; pcre:"/\w+\.oast\.(me|fun|pro|live|online)$/"; classtype:web-application-attack; sid:9901607; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"PERCEPTA DNS query to Burp Collaborator"; dns.query; content:"burpcollaborator.net"; classtype:web-application-attack; sid:9901608; rev:1;)
+
+# ── Crypto Mining / Cryptojacking ────────────────────────────────────────
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA Cryptocurrency mining — stratum protocol"; flow:established,to_server; content:"stratum+tcp://"; nocase; classtype:trojan-activity; sid:9901800; rev:2;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA Crypto mining — JSON-RPC mining.subscribe"; flow:established,to_server; content:"mining.subscribe"; classtype:trojan-activity; sid:9901801; rev:2;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA Crypto mining — JSON-RPC mining.authorize"; flow:established,to_server; content:"mining.authorize"; classtype:trojan-activity; sid:9901802; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA Crypto mining — JSON-RPC mining.submit"; flow:established,to_server; content:"mining.submit"; classtype:trojan-activity; sid:9901803; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 3333 (msg:"PERCEPTA Crypto mining pool port 3333"; flow:to_server; classtype:trojan-activity; sid:9901804; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 14444 (msg:"PERCEPTA Crypto mining pool port 14444"; flow:to_server; classtype:trojan-activity; sid:9901805; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 45700 (msg:"PERCEPTA Crypto mining pool port 45700 (Monero)"; flow:to_server; classtype:trojan-activity; sid:9901806; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"PERCEPTA DNS query to known mining pool"; dns.query; pcre:"/(pool\.|mine\.|mining\.|xmr\.|monero|nanopool|minexmr|hashvault|supportxmr|f2pool|ethermine)/i"; classtype:trojan-activity; sid:9901807; rev:2;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA CoinHive/browser-based miner script load"; flow:established,to_server; http.uri; pcre:"/(coinhive|coin-hive|cryptonight|webminepool|authedmine)/i"; classtype:trojan-activity; sid:9901808; rev:2;)
+
+# ── Protocol Anomalies ───────────────────────────────────────────────────
+
+alert tcp any any -> $HOME_NET 80 (msg:"PERCEPTA Non-standard data on port 80 (not HTTP)"; flow:to_server,established; app-layer-protocol:!http; classtype:protocol-command-decode; sid:9902000; rev:1;)
+
+alert tcp any any -> $HOME_NET 443 (msg:"PERCEPTA Non-standard data on port 443 (not TLS)"; flow:to_server,established; app-layer-protocol:!tls; classtype:protocol-command-decode; sid:9902001; rev:1;)
+
+alert tcp any any -> $HOME_NET 53 (msg:"PERCEPTA Non-DNS traffic on port 53 (TCP)"; flow:to_server,established; app-layer-protocol:!dns; classtype:protocol-command-decode; sid:9902002; rev:1;)
+
+alert tcp any any -> $HOME_NET 22 (msg:"PERCEPTA Non-SSH traffic on port 22"; flow:to_server,established; app-layer-protocol:!ssh; classtype:protocol-command-decode; sid:9902003; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 445 (msg:"PERCEPTA SMB traffic over internet (should be internal only)"; flow:to_server; classtype:policy-violation; sid:9902005; rev:2;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 3389 (msg:"PERCEPTA RDP traffic over internet (should be internal only)"; flow:to_server; classtype:policy-violation; sid:9902006; rev:2;)
+
+alert udp $HOME_NET any -> $EXTERNAL_NET 161 (msg:"PERCEPTA SNMP traffic over internet"; classtype:policy-violation; sid:9902007; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 23 (msg:"PERCEPTA Telnet traffic over internet"; flow:to_server; classtype:policy-violation; sid:9902008; rev:1;)
+
+# ── TLS / Certificate Anomalies ──────────────────────────────────────────
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA TLS self-signed certificate on outbound connection"; flow:to_server; tls.cert_self_signed; classtype:policy-violation; sid:9902201; rev:1;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"PERCEPTA TLS certificate with IP address as CN"; flow:to_server; tls.subject; pcre:"/CN=\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/"; classtype:policy-violation; sid:9902202; rev:1;)
+
+# ── Additional Threat Indicators ─────────────────────────────────────────
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA Suspicious User-Agent — Python requests"; flow:established,to_server; http.user_agent; content:"python-requests"; nocase; classtype:bad-unknown; sid:9902300; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA Suspicious User-Agent — curl"; flow:established,to_server; http.user_agent; content:"curl/"; nocase; threshold:type both, track by_src, count 20, seconds 60; classtype:bad-unknown; sid:9902301; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA Suspicious User-Agent — wget"; flow:established,to_server; http.user_agent; content:"Wget/"; nocase; classtype:bad-unknown; sid:9902302; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA Suspicious User-Agent — Go-http-client"; flow:established,to_server; http.user_agent; content:"Go-http-client"; classtype:bad-unknown; sid:9902303; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"PERCEPTA Suspicious User-Agent — Java/"; flow:established,to_server; http.user_agent; content:"Java/"; classtype:bad-unknown; sid:9902304; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 4443 (msg:"PERCEPTA Outbound to suspect HTTPS alt port 4443"; flow:to_server,established; classtype:bad-unknown; sid:9902311; rev:1;)
+
+# ── End of Percepta Custom Rules ─────────────────────────────────────────
