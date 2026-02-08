@@ -1,0 +1,18 @@
+name: "4722_user_enabled"
+event_id: 4722
+provider: "Microsoft-Windows-Security-Auditing"
+metadata:
+  winlog.event_data.TargetUserName: "svc-backup"
+  winlog.event_data.TargetDomainName: "CONTOSO"
+  winlog.event_data.TargetSid: "S-1-5-21-1111111111-2222222222-3333333333-1120"
+  winlog.event_data.SubjectUserName: "admin"
+expect:
+  category: "AUTH"
+  action: "user_enable"
+  outcome: "SUCCESS"
+  user_name: "svc-backup"
+  user_domain: "CONTOSO"
+  user_id: "S-1-5-21-1111111111-2222222222-3333333333-1120"
+  metadata_equals:
+    metadata.actor: "admin"
+  rule_should_match: "win_user_enabled_4722"
