@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Percepta SIEM — Database Admin</title>
+<style>
+  :root {
+    --bg0: #0d1117; --bg1: #161b22; --bg2: #1c2128; --bg3: #21262d;
+    --fg: #c9d1d9; --fg-muted: #8b949e; --accent: #58a6ff; --accent2: #3fb950;
+    --danger: #f85149; --warn: #d29922; --border: #30363d;
+    --font-mono: 'Cascadia Code','Fira Code','JetBrains Mono','Consolas',monospace;
+    --font-sans: -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body { background: var(--bg0); color: var(--fg); font-family: var(--font-sans); font-size: 14px; }
+
+  /* ── Layout ─────────────────────────────────────────────── */
+  .app { display: grid; grid-template-columns: 260px 1fr; grid-template-rows: 48px 1fr; height: 100vh; }
+  .topbar { grid-column: 1 / -1; background: var(--bg1); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 16px; gap: 16px; }
+  .sidebar { background: var(--bg1); border-right: 1px solid var(--border); overflow-y: auto; padding: 8px 0; }
+  .main { display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ── Topbar ─────────────────────────────────────────────── */
+  .topbar .brand { font-weight: 700; font-size: 15px; color: var(--accent); letter-spacing: 0.5px; }
+  .topbar .brand small { font-weight: 400; color: var(--fg-muted); font-size: 12px; margin-left: 6px; }
+  .topbar .links { margin-left: auto; display: flex; gap: 12px; }
+  .topbar .links a { color: var(--fg-muted); text-decoration: none; font-size: 13px; }
+  .topbar .links a:hover { color: var(--accent); }
+
+  /* ── Sidebar ────────────────────────────────────────────── */
+  .sidebar-hd { padding: 10px 14px 6px; font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--fg-muted); display: flex; align-items: center; justify-content: space-between; }
+  .sidebar-hd button { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 13px; padding: 2px 6px; }
+  .sidebar-hd button:hover { color: #79c0ff; }
+  .tbl-item { padding: 5px 14px; cursor: pointer; font-size: 13px; font-family: var(--font-mono);
+    color: var(--fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tbl-item:hover { background: var(--bg3); color: var(--fg); }
+  .tbl-item.active { background: rgba(88,166,255,0.1); color: var(--accent); border-left: 3px solid var(--accent); }
+  .tbl-meta { font-size: 10px; color: var(--fg-muted); margin-left: 6px; font-family: var(--font-sans); }
+  .sidebar-status { padding: 8px 14px; font-size: 11px; color: var(--fg-muted); }
+  .sidebar-schema { padding: 8px 14px; font-size: 12px; font-family: var(--font-mono); overflow-y: auto; max-height: 40vh;
+    border-top: 1px solid var(--border); margin-top: 8px; }
+  .schema-col { padding: 2px 0; color: var(--fg-muted); }
+  .schema-col .name { color: var(--fg); }
+  .schema-col .type { color: var(--warn); margin-left: 6px; font-size: 11px; }
+
+  /* ── Editor area ────────────────────────────────────────── */
+  .editor-area { display: flex; flex-direction: column; flex: 0 0 auto; border-bottom: 1px solid var(--border); }
+  .editor-toolbar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--bg2); }
+  .btn { background: var(--accent); color: #fff; border: none; padding: 5px 14px; border-radius: 4px; cursor: pointer;
+    font-size: 13px; font-weight: 600; }
+  .btn:hover { opacity: 0.9; }
+  .btn.danger { background: var(--danger); }
+  .btn.secondary { background: var(--bg3); color: var(--fg); border: 1px solid var(--border); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .limit-input { width: 70px; background: var(--bg1); color: var(--fg); border: 1px solid var(--border);
+    border-radius: 4px; padding: 4px 8px; font-size: 13px; text-align: center; }
+  .editor-status { font-size: 12px; color: var(--fg-muted); margin-left: auto; }
+  .sql-editor { width: 100%; min-height: 120px; max-height: 280px; resize: vertical; padding: 10px 12px;
+    background: var(--bg0); color: var(--fg); border: none; outline: none;
+    font-family: var(--font-mono); font-size: 14px; line-height: 1.5; tab-size: 2; }
+
+  /* ── Results area ───────────────────────────────────────── */
+  .results-area { flex: 1; overflow: auto; background: var(--bg0); }
+  .results-info { padding: 8px 12px; font-size: 12px; color: var(--fg-muted); background: var(--bg2);
+    border-bottom: 1px solid var(--border); display: flex; gap: 16px; align-items: center; }
+  .results-info .tag { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .tag-ok { background: rgba(63,185,80,0.15); color: var(--accent2); }
+  .tag-err { background: rgba(248,81,73,0.15); color: var(--danger); }
+  .tag-trunc { background: rgba(210,153,34,0.15); color: var(--warn); }
+
+  .results-table { width: 100%; border-collapse: collapse; font-size: 13px; font-family: var(--font-mono); }
+  .results-table th { position: sticky; top: 0; z-index: 2; background: var(--bg2); color: var(--accent);
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;
+    padding: 6px 10px; text-align: left; border-bottom: 2px solid var(--border); white-space: nowrap; user-select: none; cursor: pointer; }
+  .results-table th:hover { color: #79c0ff; }
+  .results-table td { padding: 4px 10px; border-bottom: 1px solid var(--border); white-space: nowrap;
+    max-width: 400px; overflow: hidden; text-overflow: ellipsis; }
+  .results-table tr:hover td { background: rgba(88,166,255,0.04); }
+  .results-table tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+
+  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%; color: var(--fg-muted); gap: 8px; }
+  .empty-state .icon { font-size: 48px; opacity: 0.3; }
+  .error-msg { padding: 16px; color: var(--danger); font-family: var(--font-mono); font-size: 13px;
+    white-space: pre-wrap; word-break: break-word; }
+
+  /* ── Export/CSV ─────────────────────────────────────────── */
+  .export-bar { display: flex; gap: 8px; padding: 0 12px; }
+
+  /* ── Scrollbars ─────────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg0); }
+  ::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #444c56; }
+
+  /* ── Spinner ────────────────────────────────────────────── */
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%; animation: spin .6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Key shortcuts hint ─────────────────────────────────── */
+  .shortcut { font-size: 11px; color: var(--fg-muted); background: var(--bg3); padding: 1px 5px; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="brand">PERCEPTA <small>Database Admin</small></div>
+    <div class="links">
+      <a href="/dashboard">Dashboard</a>
+      <a href="/logout">Logout</a>
+    </div>
+  </header>
+
+  <!-- Sidebar: tables + schema -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-hd">Tables <button id="btnRefreshTables" title="Refresh table list">↻</button></div>
+    <div id="tableList"><div class="sidebar-status">Loading…</div></div>
+    <div id="schemaPanel" class="sidebar-schema" style="display:none;"></div>
+  </nav>
+
+  <!-- Main: editor + results -->
+  <div class="main">
+    <div class="editor-area">
+      <div class="editor-toolbar">
+        <button class="btn" id="btnRun" title="Run SELECT query (Ctrl+Enter)">▶ Run Query</button>
+        <button class="btn danger" id="btnExec" title="Execute write statement">Execute</button>
+        <label style="font-size:12px;color:var(--fg-muted);">Limit:</label>
+        <input type="number" class="limit-input" id="limitInput" value="200" min="1" max="10000"/>
+        <div class="export-bar">
+          <button class="btn secondary" id="btnCsv" title="Export results as CSV" disabled>CSV</button>
+        </div>
+        <span class="editor-status" id="editorStatus"></span>
+        <span><span class="shortcut">Ctrl+Enter</span> run</span>
+      </div>
+      <textarea class="sql-editor" id="sqlEditor" placeholder="SELECT * FROM events LIMIT 10" spellcheck="false"></textarea>
+    </div>
+    <div class="results-info" id="resultsInfo" style="display:none;"></div>
+    <div class="results-area" id="resultsArea">
+      <div class="empty-state">
+        <div class="icon">⛁</div>
+        <div>Write a query and press <strong>Run Query</strong></div>
+        <div style="font-size:12px;">Click a table name in the sidebar to auto-fill a SELECT</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  // ── API helpers ──────────────────────────────────────────
+  async function apiFetch(url, opts) {
+    const resp = await fetch(url, { credentials: 'same-origin', ...opts });
+    if (resp.status === 401 || resp.status === 403) { window.location.href = '/login'; throw new Error('Unauthorized'); }
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      throw new Error(body.detail || body.message || `HTTP ${resp.status}`);
+    }
+    return resp.json();
+  }
+  function apiGet(url) { return apiFetch(url); }
+  function apiPost(url, body) {
+    return apiFetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+
+  // ── State ────────────────────────────────────────────────
+  let tables = [];
+  let lastResult = null;  // { columns, rows, truncated }
+  let activeTable = null;
+  let sortCol = -1;
+  let sortAsc = true;
+
+  // ── DOM refs ─────────────────────────────────────────────
+  const $tableList   = document.getElementById('tableList');
+  const $schemaPanel = document.getElementById('schemaPanel');
+  const $sqlEditor   = document.getElementById('sqlEditor');
+  const $limitInput  = document.getElementById('limitInput');
+  const $btnRun      = document.getElementById('btnRun');
+  const $btnExec     = document.getElementById('btnExec');
+  const $btnCsv      = document.getElementById('btnCsv');
+  const $resultsInfo = document.getElementById('resultsInfo');
+  const $resultsArea = document.getElementById('resultsArea');
+  const $editorStatus = document.getElementById('editorStatus');
+  const $btnRefresh  = document.getElementById('btnRefreshTables');
+
+  // ── Escaping ─────────────────────────────────────────────
+  function esc(s) {
+    const d = document.createElement('div'); d.textContent = String(s ?? ''); return d.innerHTML;
+  }
+
+  // ── Load tables ──────────────────────────────────────────
+  async function loadTables() {
+    $tableList.innerHTML = '<div class="sidebar-status"><span class="spinner"></span> Loading…</div>';
+    try {
+      const resp = await apiGet('/api/db/tables');
+      tables = resp.tables || [];
+      if (!tables.length) { $tableList.innerHTML = '<div class="sidebar-status">No tables found.</div>'; return; }
+      $tableList.innerHTML = tables.map(t => {
+        const size = (Number(t.total_bytes || 0) / (1024*1024)).toFixed(1);
+        const rows = Number(t.total_rows || 0).toLocaleString();
+        return `<div class="tbl-item" data-table="${esc(t.name)}">${esc(t.name)}<span class="tbl-meta">${rows}r · ${size}MB</span></div>`;
+      }).join('');
+      $tableList.querySelectorAll('.tbl-item').forEach(el => {
+        el.addEventListener('click', () => selectTable(el.dataset.table));
+      });
+    } catch(e) {
+      $tableList.innerHTML = `<div class="sidebar-status" style="color:var(--danger)">Error: ${esc(e.message)}</div>`;
+    }
+  }
+
+  async function selectTable(name) {
+    activeTable = name;
+    $tableList.querySelectorAll('.tbl-item').forEach(el => el.classList.toggle('active', el.dataset.table === name));
+    $sqlEditor.value = `SELECT * FROM ${name}`;
+    // Load schema
+    try {
+      const resp = await apiGet(`/api/db/schema?table=${encodeURIComponent(name)}`);
+      const cols = resp.columns || [];
+      if (cols.length) {
+        $schemaPanel.style.display = '';
+        $schemaPanel.innerHTML = `<div style="font-size:11px;font-weight:700;color:var(--fg-muted);margin-bottom:4px;">${esc(name)} schema</div>` +
+          cols.map(c => `<div class="schema-col"><span class="name">${esc(c.name)}</span><span class="type">${esc(c.type)}</span></div>`).join('');
+      }
+    } catch { /* non-critical */ }
+    // Auto-run
+    runQuery();
+  }
+
+  // ── Run query ────────────────────────────────────────────
+  async function runQuery() {
+    const sql = $sqlEditor.value.trim();
+    if (!sql) return;
+    const limit = Math.max(1, Math.min(10000, Number($limitInput.value) || 200));
+    $editorStatus.innerHTML = '<span class="spinner"></span> Running…';
+    $btnRun.disabled = true;
+    $resultsInfo.style.display = 'none';
+    $resultsArea.innerHTML = '';
+    try {
+      const resp = await apiPost('/api/db/query', { sql, limit });
+      lastResult = resp;
+      sortCol = -1; sortAsc = true;
+      renderResults(resp);
+      const rowCount = (resp.rows || []).length;
+      $editorStatus.textContent = `${rowCount} row${rowCount !== 1 ? 's' : ''}`;
+      $resultsInfo.style.display = 'flex';
+      $resultsInfo.innerHTML = `<span class="tag tag-ok">OK</span><span>${rowCount} row${rowCount !== 1 ? 's' : ''}</span>` +
+        (resp.truncated ? '<span class="tag tag-trunc">TRUNCATED</span>' : '') +
+        `<span>${(resp.columns || []).length} columns</span>`;
+      $btnCsv.disabled = !rowCount;
+    } catch(e) {
+      lastResult = null;
+      $editorStatus.textContent = 'Error';
+      $resultsInfo.style.display = 'flex';
+      $resultsInfo.innerHTML = '<span class="tag tag-err">ERROR</span>';
+      $resultsArea.innerHTML = `<div class="error-msg">${esc(e.message)}</div>`;
+      $btnCsv.disabled = true;
+    } finally {
+      $btnRun.disabled = false;
+    }
+  }
+
+  // ── Execute (write) ──────────────────────────────────────
+  async function execStatement() {
+    const sql = $sqlEditor.value.trim();
+    if (!sql) return;
+    if (!confirm(`Execute write statement?\n\n${sql.slice(0, 300)}`)) return;
+    $editorStatus.innerHTML = '<span class="spinner"></span> Executing…';
+    $btnExec.disabled = true;
+    try {
+      const resp = await apiPost('/api/db/execute', { sql });
+      $editorStatus.textContent = resp.message || 'Done';
+      $resultsInfo.style.display = 'flex';
+      $resultsInfo.innerHTML = `<span class="tag tag-ok">OK</span><span>${esc(resp.message)}</span>`;
+      $resultsArea.innerHTML = '';
+      loadTables(); // refresh counts
+    } catch(e) {
+      $editorStatus.textContent = 'Error';
+      $resultsInfo.style.display = 'flex';
+      $resultsInfo.innerHTML = '<span class="tag tag-err">ERROR</span>';
+      $resultsArea.innerHTML = `<div class="error-msg">${esc(e.message)}</div>`;
+    } finally {
+      $btnExec.disabled = false;
+    }
+  }
+
+  // ── Render results ───────────────────────────────────────
+  function renderResults(resp) {
+    const cols = resp.columns || [];
+    const rows = resp.rows || [];
+    if (!cols.length && !rows.length) {
+      $resultsArea.innerHTML = '<div class="empty-state"><div class="icon">∅</div><div>Empty result set</div></div>';
+      return;
+    }
+    // Sort if active
+    let sortedRows = rows;
+    if (sortCol >= 0 && sortCol < cols.length) {
+      sortedRows = [...rows].sort((a, b) => {
+        const va = (a[sortCol] ?? ''), vb = (b[sortCol] ?? '');
+        const na = Number(va), nb = Number(vb);
+        if (!isNaN(na) && !isNaN(nb)) return sortAsc ? na - nb : nb - na;
+        return sortAsc ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+      });
+    }
+    const thRow = cols.map((c, i) => {
+      const arrow = sortCol === i ? (sortAsc ? ' ▲' : ' ▼') : '';
+      return `<th data-col="${i}">${esc(c)}${arrow}</th>`;
+    }).join('');
+    const tbRows = sortedRows.map(r => {
+      const cells = (Array.isArray(r) ? r : [r]).map(v => {
+        const s = v === null || v === undefined ? '<span style="color:var(--fg-muted)">NULL</span>' :
+          typeof v === 'object' ? esc(JSON.stringify(v)) : esc(String(v));
+        return `<td title="${esc(String(v ?? ''))}">${s}</td>`;
+      }).join('');
+      return `<tr>${cells}</tr>`;
+    }).join('');
+    $resultsArea.innerHTML = `<table class="results-table"><thead><tr>${thRow}</tr></thead><tbody>${tbRows}</tbody></table>`;
+    // Column sort click
+    $resultsArea.querySelectorAll('th[data-col]').forEach(th => {
+      th.addEventListener('click', () => {
+        const ci = parseInt(th.dataset.col, 10);
+        if (sortCol === ci) { sortAsc = !sortAsc; } else { sortCol = ci; sortAsc = true; }
+        renderResults(lastResult);
+      });
+    });
+  }
+
+  // ── CSV export ───────────────────────────────────────────
+  function exportCsv() {
+    if (!lastResult) return;
+    const cols = lastResult.columns || [];
+    const rows = lastResult.rows || [];
+    const csvLine = arr => arr.map(v => {
+      const s = v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
+      return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+    }).join(',');
+    const csv = [csvLine(cols), ...rows.map(r => csvLine(Array.isArray(r) ? r : [r]))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `percepta_query_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.csv`;
+    a.click(); URL.revokeObjectURL(a.href);
+  }
+
+  // ── Event bindings ───────────────────────────────────────
+  $btnRun.addEventListener('click', runQuery);
+  $btnExec.addEventListener('click', execStatement);
+  $btnCsv.addEventListener('click', exportCsv);
+  $btnRefresh.addEventListener('click', loadTables);
+
+  // Ctrl+Enter to run
+  $sqlEditor.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runQuery(); }
+    // Tab inserts 2 spaces
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const start = $sqlEditor.selectionStart;
+      $sqlEditor.value = $sqlEditor.value.substring(0, start) + '  ' + $sqlEditor.value.substring($sqlEditor.selectionEnd);
+      $sqlEditor.selectionStart = $sqlEditor.selectionEnd = start + 2;
+    }
+  });
+
+  // ── Init ─────────────────────────────────────────────────
+  loadTables();
+})();
+</script>
+</body>
+</html>
