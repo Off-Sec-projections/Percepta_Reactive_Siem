@@ -1,0 +1,15 @@
+name: "4719_audit_policy_changed"
+event_id: 4719
+provider: "Microsoft-Windows-Security-Auditing"
+metadata:
+  winlog.event_data.SubjectUserName: "admin"
+  winlog.event_data.SubjectDomainName: "CONTOSO"
+  winlog.event_data.SubjectUserSid: "S-1-5-21-1111111111-2222222222-3333333333-500"
+expect:
+  category: "SYSTEM"
+  action: "audit_policy_change"
+  outcome: "SUCCESS"
+  user_name: "admin"
+  user_domain: "CONTOSO"
+  user_id: "S-1-5-21-1111111111-2222222222-3333333333-500"
+  rule_should_match: "win_audit_policy_change_4719"
