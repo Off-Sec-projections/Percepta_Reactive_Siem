@@ -1,0 +1,22 @@
+name: "4688_process_create"
+event_id: 4688
+provider: "Microsoft-Windows-Security-Auditing"
+metadata:
+  winlog.event_data.NewProcessName: "C:\\Windows\\System32\\cmd.exe"
+  winlog.event_data.CommandLine: "cmd.exe /c whoami"
+  winlog.event_data.NewProcessId: "4242"
+  winlog.event_data.ProcessId: "1234"
+  winlog.event_data.SubjectUserName: "alice"
+  winlog.event_data.SubjectDomainName: "CONTOSO"
+  winlog.event_data.SubjectUserSid: "S-1-5-21-1111111111-2222222222-3333333333-1001"
+expect:
+  category: "PROCESS"
+  action: "process_create"
+  outcome: "SUCCESS"
+  user_name: "alice"
+  user_domain: "CONTOSO"
+  user_id: "S-1-5-21-1111111111-2222222222-3333333333-1001"
+  process_name: "C:\\Windows\\System32\\cmd.exe"
+  process_command_line: "cmd.exe /c whoami"
+  pid: 4242
+  ppid: 1234
