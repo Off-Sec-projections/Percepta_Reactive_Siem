@@ -1,0 +1,139 @@
+<svg width="210" height="58" viewBox="0 0 210 58" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Emboss: specular highlight from top-left point light -->
+    <filter id="emboss3d" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="1.0" result="blur"/>
+      <feSpecularLighting in="blur" surfaceScale="5" specularConstant="1.4"
+          specularExponent="32" lighting-color="#7ae8ff" result="spec">
+        <fePointLight x="10" y="6" z="38"/>
+      </feSpecularLighting>
+      <feComposite in="spec" in2="SourceAlpha" operator="in" result="litSpec"/>
+      <feBlend in="SourceGraphic" in2="litSpec" mode="screen" result="blended"/>
+      <feDropShadow dx="0" dy="2.5" stdDeviation="2.2"
+          flood-color="#010510" flood-opacity="0.85"/>
+    </filter>
+    <!-- Fabric texture noise overlay -->
+    <filter id="fabricNoise" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.72" numOctaves="4" seed="12" result="noise"/>
+      <feColorMatrix type="saturate" values="0" in="noise" result="gray"/>
+      <feBlend in="SourceGraphic" in2="gray" mode="overlay" result="tx"/>
+      <feComposite in="tx" in2="SourceAlpha" operator="in"/>
+    </filter>
+    <!-- Outer glow for radar core -->
+    <filter id="radarGlow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="2.8" result="glow"/>
+      <feComposite in="SourceGraphic" in2="glow" operator="over"/>
+    </filter>
+    <!-- Text emboss -->
+    <filter id="textEmboss" x="-5%" y="-20%" width="110%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="0.8" result="blur"/>
+      <feSpecularLighting in="blur" surfaceScale="3" specularConstant="1.2"
+          specularExponent="24" lighting-color="#9af0ff" result="spec">
+        <fePointLight x="0" y="0" z="30"/>
+      </feSpecularLighting>
+      <feComposite in="spec" in2="SourceAlpha" operator="in" result="litSpec"/>
+      <feBlend in="SourceGraphic" in2="litSpec" mode="screen"/>
+    </filter>
+
+    <!-- Gradients -->
+    <linearGradient id="badgeBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1f38"/>
+      <stop offset="100%" stop-color="#070e1e"/>
+    </linearGradient>
+    <linearGradient id="badgeBevel" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e4a6e" stop-opacity="0.9"/>
+      <stop offset="50%" stop-color="#0a2040" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#030a18" stop-opacity="0.8"/>
+    </linearGradient>
+    <linearGradient id="shieldFill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a5080"/>
+      <stop offset="45%" stop-color="#0d3460"/>
+      <stop offset="100%" stop-color="#071828"/>
+    </linearGradient>
+    <linearGradient id="shieldBevel" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5ac8f0" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#0a2a50" stop-opacity="0.5"/>
+    </linearGradient>
+    <radialGradient id="radarCore" cx="50%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#00e5ff" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#00a8cc" stop-opacity="0.4"/>
+    </radialGradient>
+    <linearGradient id="wordmarkGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#e8f6ff"/>
+      <stop offset="32%" stop-color="#00d4ff"/>
+      <stop offset="68%" stop-color="#b8e0ff"/>
+      <stop offset="100%" stop-color="#f5a124"/>
+    </linearGradient>
+    <linearGradient id="sublineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00d4ff" stop-opacity="0.75"/>
+      <stop offset="100%" stop-color="#f5a124" stop-opacity="0.65"/>
+    </linearGradient>
+    <linearGradient id="sweepGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00e5ff" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#00d4ff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ── Badge background (embroidered patch base) ── -->
+  <rect x="1.5" y="1.5" width="55" height="55" rx="11"
+        fill="url(#badgeBg)" stroke="url(#badgeBevel)" stroke-width="1.4"/>
+  <!-- Inner shadow rim (depth) -->
+  <rect x="1.5" y="1.5" width="55" height="55" rx="11"
+        fill="none" stroke="#000a1e" stroke-width="2.5" stroke-opacity="0.6"/>
+  <!-- Fabric texture tile -->
+  <rect x="1.5" y="1.5" width="55" height="55" rx="11"
+        fill="url(#shieldFill)" opacity="0.06" filter="url(#fabricNoise)"/>
+
+  <!-- ── Shield icon (3D embossed) ── -->
+  <g transform="translate(13, 7)" filter="url(#emboss3d)">
+    <!-- Shield body -->
+    <path d="M15 2.5L3.5 7V18C3.5 25 15 33 15 33C15 33 26.5 25 26.5 18V7L15 2.5Z"
+          fill="url(#shieldFill)" opacity="0.92"/>
+    <!-- Shield top highlight edge (bevel) -->
+    <path d="M15 2.5L3.5 7V18C3.5 25 15 33 15 33"
+          stroke="#5ac8f0" stroke-width="1.1" fill="none"
+          stroke-linecap="round" stroke-opacity="0.55"/>
+    <!-- Shield bottom shadow edge (bevel) -->
+    <path d="M15 33C15 33 26.5 25 26.5 18V7L15 2.5"
+          stroke="#031428" stroke-width="1.3" fill="none"
+          stroke-linecap="round" stroke-opacity="0.7"/>
+
+    <!-- Radar rings -->
+    <circle cx="15" cy="17" r="2.8" fill="url(#radarCore)" filter="url(#radarGlow)"/>
+    <circle cx="15" cy="17" r="6.2" fill="none" stroke="url(#radarCore)"
+            stroke-width="0.9" opacity="0.7"/>
+    <circle cx="15" cy="17" r="9.8" fill="none" stroke="url(#radarCore)"
+            stroke-width="0.6" opacity="0.38"/>
+    <!-- Radar sweep line -->
+    <line x1="15" y1="17" x2="22" y2="10"
+          stroke="url(#sweepGrad)" stroke-width="1.1"
+          stroke-linecap="round" opacity="0.75"/>
+    <!-- Sweep blip -->
+    <circle cx="22" cy="10" r="1.2" fill="#00e5ff" opacity="0.85"/>
+  </g>
+
+  <!-- ── Wordmark: PERCEPTA ── -->
+  <text x="66" y="24"
+        font-family="'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif"
+        font-size="16" font-weight="800" letter-spacing="1.2"
+        fill="url(#wordmarkGrad)"
+        filter="url(#textEmboss)">PERCEPTA</text>
+
+  <!-- ── Sub-mark: REACTIVE SIEM ── -->
+  <text x="67" y="36.5"
+        font-family="'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif"
+        font-size="8.2" font-weight="600" letter-spacing="2.8"
+        fill="url(#sublineGrad)">REACTIVE SIEM</text>
+
+  <!-- ── Byline ── -->
+  <text x="67" y="48"
+        font-family="'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif"
+        font-size="7.2" font-weight="400" letter-spacing="0.4"
+        fill="#3a6688" opacity="0.8">by Off-Sec Projections</text>
+
+  <!-- ── Corner rivets (tactical patch detail) ── -->
+  <circle cx="9"  cy="9"  r="1.6" fill="#1a3d5e" stroke="#2a6090" stroke-width="0.6" opacity="0.7"/>
+  <circle cx="49" cy="9"  r="1.6" fill="#1a3d5e" stroke="#2a6090" stroke-width="0.6" opacity="0.7"/>
+  <circle cx="9"  cy="49" r="1.6" fill="#1a3d5e" stroke="#2a6090" stroke-width="0.6" opacity="0.7"/>
+  <circle cx="49" cy="49" r="1.6" fill="#1a3d5e" stroke="#2a6090" stroke-width="0.6" opacity="0.7"/>
+</svg>
