@@ -1,0 +1,18 @@
+name: "4720_user_created"
+event_id: 4720
+provider: "Microsoft-Windows-Security-Auditing"
+metadata:
+  winlog.event_data.TargetUserName: "newuser"
+  winlog.event_data.TargetDomainName: "CONTOSO"
+  winlog.event_data.TargetSid: "S-1-5-21-1111111111-2222222222-3333333333-1109"
+  winlog.event_data.SubjectUserName: "admin"
+expect:
+  category: "AUTH"
+  action: "user_add"
+  outcome: "SUCCESS"
+  user_name: "newuser"
+  user_domain: "CONTOSO"
+  user_id: "S-1-5-21-1111111111-2222222222-3333333333-1109"
+  metadata_equals:
+    metadata.creator: "admin"
+  rule_should_match: "win_new_user_4720"
