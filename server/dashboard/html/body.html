@@ -1,0 +1,2003 @@
+<body>
+  <a href="#mainContent" class="skip-link">Skip to main content</a>
+  <noscript>
+    <div class="noscript-banner">
+      <strong data-i18n="noscript.title">JavaScript is required for the dashboard.</strong>
+      <div class="noscript-body" data-i18n="noscript.body">Enable JavaScript and reload /dashboard.</div>
+    </div>
+  </noscript>
+  <div class="app">
+    <!-- Event Detail Drawer (shared across all panes) -->
+    <div id="evDetailDrawer" class="ev-detail-drawer" role="dialog" aria-modal="true" aria-label="Event Details">
+      <div class="ev-detail-backdrop" id="evDetailBackdrop"></div>
+      <div class="ev-detail-panel">
+        <!-- Breadcrumb Navigation -->
+        <div class="ev-detail-breadcrumb">
+          <button class="ev-detail-back" id="evDetailBack" title="Return to previous view">
+            <span class="back-arrow">←</span>
+            <span class="back-text">Back to Alerts</span>
+          </button>
+        </div>
+        <div class="ev-detail-hd">
+          <span class="ev-detail-hd-title">Event Details</span>
+          <button class="ev-detail-hd-close" id="evDetailClose" aria-label="Close event details"
+            title="Close (Esc)">&#x2715;</button>
+        </div>
+        <div class="ev-detail-body" id="evDetailBody"></div>
+        <!-- Quick Action Buttons (Contextual Navigation) -->
+        <div class="ev-detail-actions">
+          <button class="ev-action-btn ev-action-primary" id="evDetailViewEvents"
+            title="View all related events for this alert">
+            <span class="ev-action-icon">🔍</span>
+            <span class="ev-action-label">View Events</span>
+          </button>
+          <button class="ev-action-btn" id="evDetailExecuteResponse"
+            title="Execute response action against this threat">
+            <span class="ev-action-icon">⚡</span>
+            <span class="ev-action-label">Respond</span>
+          </button>
+          <button class="ev-action-btn" id="evDetailCreateCase" title="Create incident case from this alert">
+            <span class="ev-action-icon">📋</span>
+            <span class="ev-action-label">Create Case</span>
+          </button>
+          <button class="ev-action-btn" id="evDetailCheckCompliance" title="Check compliance impact of this incident">
+            <span class="ev-action-icon">✓</span>
+            <span class="ev-action-label">Compliance</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <!-- Keyboard Shortcuts Help Overlay -->
+    <div id="kbShortcutsOverlay" class="kb-overlay kb-overlay-hidden" role="dialog" aria-modal="true"
+      aria-label="Keyboard Shortcuts">
+      <div class="kb-overlay-backdrop"></div>
+      <div class="kb-overlay-panel">
+        <div class="kb-overlay-hd">
+          <span class="kb-overlay-title">Keyboard Shortcuts</span>
+          <button class="kb-overlay-close" aria-label="Close" title="Close">&#x2715;</button>
+        </div>
+        <div class="kb-overlay-body">
+          <div class="kb-section">
+            <h4>Navigation</h4>
+            <div class="kb-row"><kbd>Alt</kbd>+<kbd>1</kbd><span>Overview</span></div>
+            <div class="kb-row"><kbd>Alt</kbd>+<kbd>2</kbd><span>Alerts</span></div>
+            <div class="kb-row"><kbd>Alt</kbd>+<kbd>3</kbd><span>Events</span></div>
+            <div class="kb-row"><kbd>Alt</kbd>+<kbd>4</kbd><span>Honeypot</span></div>
+            <div class="kb-row"><kbd>Alt</kbd>+<kbd>5</kbd><span>IDS / IPS</span></div>
+            <div class="kb-row"><kbd>Alt</kbd>+<kbd>6</kbd><span>Escalations</span></div>
+            <div class="kb-row"><kbd>Alt</kbd>+<kbd>7</kbd><span>Playbooks</span></div>
+            <div class="kb-row"><kbd>Alt</kbd>+<kbd>8</kbd><span>Response</span></div>
+            <div class="kb-row"><kbd>Alt</kbd>+<kbd>9</kbd><span>Audit Log</span></div>
+          </div>
+          <div class="kb-section">
+            <h4>Actions</h4>
+            <div class="kb-row"><kbd>Esc</kbd><span>Close drawer / dialog</span></div>
+            <div class="kb-row"><kbd>?</kbd><span>Show this help</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="topbar">
+      <button id="sidebarMenuToggle" class="btn menuToggle" type="button" data-i18n-title="btn.hideMenu"
+        title="Hide menu" aria-label="Toggle menu" aria-pressed="false">
+        <span class="icon">☰</span>
+        <span class="menuToggleLabel" data-i18n="btn.menu">Menu</span>
+      </button>
+      <div class="brand">
+        <div class="brand-main">
+          <div class="brand-text">
+            <div class="brand-title-row">
+              <span class="wordmark">PERCEPTA</span>
+              <span class="brand-byline">by Off-Sec Projections</span>
+            </div>
+            <div class="reactive-mark">Reactive SIEM</div>
+          </div>
+          <div class="statusline-vert" aria-label="system health and connectivity">
+            <span class="item"><span id="healthDot" class="dot"></span> <span id="healthText">...</span></span>
+            <span class="item"><span id="wsDot" class="dot ws"></span> <span id="wsText">WS...</span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="chips" aria-label="live counters">
+        <span class="chip"><span data-i18n="top.agents">Agents</span> <strong id="topAgents">0</strong></span>
+        <span class="chip"><span data-i18n="top.alerts">Alerts</span> <strong id="topAlerts">0</strong></span>
+        <span class="chip" id="authChip"><span id="authChipText" data-i18n="top.guest">Guest</span></span>
+      </div>
+
+      <div class="top-actions">
+        <div class="search">
+          <input id="globalSearch" aria-label="Search" data-i18n-placeholder="top.search.placeholder"
+            placeholder="Search" title="Type text, user, host, IP, hash, or event id" />
+        </div>
+        <button id="themeBtn" class="btn" data-i18n="btn.theme">Theme</button>
+        <button id="refreshBtn" class="btn primary" data-i18n="btn.refresh">Refresh</button>
+      </div>
+    </div>
+
+    <div class="main">
+      <aside class="sidebar" role="navigation" aria-label="Dashboard navigation">
+        <div class="sidebarScroll">
+          <div class="nav" role="navigation" aria-label="sections">
+            <!-- ═══════════════════════════════════════════════════════════
+                 TIER 1: INCIDENT RESPONSE WORKFLOW (Primary SOC Operations)
+                 This is the core analyst workflow: Detect → Investigate → Respond → Track
+                 ═══════════════════════════════════════════════════════════ -->
+            <div class="nav-section-header">
+              <span class="nav-section-icon">🚨</span>
+              <span class="nav-section-text">Incident Response</span>
+            </div>
+            <div id="navOverview" class="item active" data-view="overview">
+              <span data-i18n="nav.overview">Dashboard</span>
+              <span class="badge badge-live" data-i18n="nav.live">Live</span>
+            </div>
+            <div id="navAlerts" class="item" data-view="alerts">
+              <span data-i18n="nav.alerts">Alerts</span>
+              <span class="badge badge-count" id="navBadgeAlerts">0</span>
+            </div>
+            <div id="navEvents" class="item" data-view="events">
+              <span>Investigation</span>
+              <span class="badge badge-subtle">Hunt</span>
+            </div>
+            <div id="navResponse" class="item" data-view="response">
+              <span>Response</span>
+              <span class="badge badge-action">Act</span>
+            </div>
+            <div id="navPlaybooks" class="item" data-view="playbooks">
+              <span>Playbooks</span>
+              <span class="badge badge-soar">SOAR</span>
+            </div>
+            <div id="navEscalations" class="item" data-view="escalations">
+              <span>Create Case</span>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════════
+                 TIER 2: THREAT INTELLIGENCE & ANALYSIS
+                 Supporting analysis: Deception, compliance, historical review
+                 ═══════════════════════════════════════════════════════════ -->
+            <div class="nav-section-header">
+              <span class="nav-section-icon">🔍</span>
+              <span class="nav-section-text">Intelligence</span>
+            </div>
+            <div id="navHoneypot" class="item" data-view="honeypot">
+              <span>Threat Intel</span>
+              <span class="badge badge-count" id="navBadgeHoneypot">0</span>
+            </div>
+            <div id="navCases" class="item" data-view="cases">
+              <span>Cases</span>
+              <span class="badge badge-count" id="navBadgeCases">0</span>
+            </div>
+            <div id="navCompliance" class="item" data-view="compliance">
+              <span>Compliance</span>
+              <span class="badge badge-subtle">GRC</span>
+            </div>
+            <div id="navReports" class="item" data-view="reports">
+              <span>Reports</span>
+            </div>
+            <div id="navAudit" class="item" data-view="audit">
+              <span>Audit Log</span>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════════
+                 TIER 2b: SYSTEM & INTEGRATIONS
+                 Intrusion detection, signature management, tool integrations
+                 ═══════════════════════════════════════════════════════════ -->
+            <div class="nav-section-header">
+              <span class="nav-section-icon">🔗</span>
+              <span class="nav-section-text">System & IDS</span>
+            </div>
+            <div id="navIds" class="item" data-view="ids">
+              <span data-i18n="nav.ids">IDS / IPS</span>
+              <span class="badge" id="navBadgeIds">0</span>
+            </div>
+            <div id="navDetection" class="item" data-view="detection">
+              <span>Detection Coverage</span>
+              <span class="badge badge-subtle">ATT&CK</span>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════════
+                 HIDDEN PANES: Not shown in navigation (incomplete/confusing)
+                 Still accessible via direct URL or keyboard shortcut if needed
+                 ═══════════════════════════════════════════════════════════ -->
+            <div class="nav-hidden-panes" style="display: none;" aria-hidden="true">
+              <div id="navSocTools" class="item" data-view="soctools"><span>SOC Tools</span><span
+                  class="badge">Ops</span></div>
+            </div>
+          </div>
+
+          <div class="sectionTitle" data-i18n="sidebar.connectedAgents">Connected agents</div>
+          <div id="agentsList" class="agentList"></div>
+        </div>
+
+        <div class="nav navBottom" role="navigation" aria-label="settings">
+          <!-- TIER 3: ADMINISTRATION -->
+          <div class="nav-section-header nav-section-admin">
+            <span class="nav-section-icon">⚙️</span>
+            <span class="nav-section-text">Administration</span>
+          </div>
+          <div id="navSettings" class="item" data-view="settings">
+            <span data-i18n="nav.settings">Settings</span>
+            <span class="badge badge-subtle">Config</span>
+          </div>
+        </div>
+      </aside>
+
+      <main class="content" id="mainContent" role="main">
+        <section id="paneOverview" class="pane active ov-elite">
+          <!-- STAGE: Full Background Map -->
+          <div class="map-container">
+            <div id="ovEliteMap"></div>
+            <div id="ovEliteGlobe" aria-hidden="true"></div>
+            <div class="map-vignette"></div>
+            <div class="critical-vignette" id="eliteCriticalVignette"></div>
+          </div>
+
+          <!-- UI LAYER: Floating Elements -->
+          <div class="ui-layer">
+
+            <!-- Map Controls -->
+            <div class="map-controls anim-1">
+              <button class="toggle-btn mode-geo active" id="elite-btn-mapmode">GEO View</button>
+              <button class="toggle-btn mode-exec" id="elite-btn-executive">Executive View</button>
+              <button class="toggle-btn mode-soc" id="elite-btn-command">Command Center</button>
+            </div>
+
+            <div class="frosted executive-stance" id="eliteExecutiveStance" aria-live="polite">
+              <span class="stance-label">Overall Stance</span>
+              <span class="stance-value" id="eliteExecutiveStanceValue">SECURE</span>
+            </div>
+
+            <!-- HERO STRIP -->
+            <div class="hero-bar anim-1">
+              <div class="frosted hero-pill">
+                <div class="hero-icon-ring"><svg width="22" height="22" fill="none" stroke="var(--info)"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+                  </svg></div>
+                <div class="hero-stat">
+                  <span class="hero-lbl">Real-time Ingest</span>
+                  <span class="hero-val"><span id="elite-ingest-val">0.0</span><span
+                      style="font-size:16px;color:var(--text-muted);font-weight:600"> e/s</span></span>
+                </div>
+              </div>
+
+              <div class="frosted hero-pill">
+                <div class="hero-icon-ring" style="border-color:rgba(255,23,68,0.3); background:rgba(255,23,68,0.05)">
+                  <svg width="22" height="22" fill="none" stroke="var(--danger)" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round" viewBox="0 0 24 24">
+                    <path
+                      d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                </div>
+                <div class="hero-stat">
+                  <span class="hero-lbl">Critical Incidents</span>
+                  <span class="hero-val c-danger" id="elite-critical-val">0</span>
+                </div>
+              </div>
+
+              <div class="frosted hero-pill">
+                <div class="hero-icon-ring"><svg width="22" height="22" fill="none" stroke="var(--text-strong)"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                    <line x1="8" y1="21" x2="16" y2="21" />
+                    <line x1="12" y1="17" x2="12" y2="21" />
+                  </svg></div>
+                <div class="hero-stat">
+                  <span class="hero-lbl">Active Agents</span>
+                  <span class="hero-val" id="elite-agents-val">0</span>
+                </div>
+              </div>
+
+              <div class="frosted hero-pill">
+                <div class="hero-icon-ring" style="border-color:rgba(0,250,154,0.3); background:rgba(0,250,154,0.05)">
+                  <svg width="22" height="22" fill="none" stroke="var(--ok)" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round" viewBox="0 0 24 24">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                    <polyline points="22 4 12 14.01 9 11.01" />
+                  </svg>
+                </div>
+                <div class="hero-stat">
+                  <span class="hero-lbl">Global Health</span>
+                  <span class="hero-val c-ok" id="elite-health-val">100%</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- MID STRIP (Sidebars) -->
+            <div class="mid-layer">
+
+              <!-- LEFT PANEL -->
+              <div class="frosted side-panel anim-2">
+                <div class="side-panel-inner">
+
+                  <!-- Classifications -->
+                  <div class="widget" draggable="true" data-ov-id="class">
+                    <div class="w-head">
+                      <span class="w-title">Classifications</span>
+                      <span class="w-sub">Live 60m</span>
+                    </div>
+                    <div class="mini-donut"><canvas id="elite-classDonut"></canvas></div>
+                    <div class="elite-class-legend" id="elite-classLegend"></div>
+                  </div>
+
+                  <div class="soft-divider"></div>
+
+                  <!-- Pipeline Integrity -->
+                  <div class="widget">
+                    <div class="w-head">
+                      <span class="w-title">Pipeline Integrity</span>
+                      <span class="w-sub ok" id="elite-pipeline-status">Nominal</span>
+                    </div>
+                    <div class="soft-list">
+                      <div class="soft-row">
+                        <span class="row-lbl">Parser Engine</span>
+                        <span class="row-val c-ok" id="elite-parser-lag">0ms lag</span>
+                      </div>
+                      <div class="soft-row">
+                        <span class="row-lbl">WS Connection</span>
+                        <span class="row-val c-ok" id="elite-ws-status">Secure</span>
+                      </div>
+                      <div class="soft-row">
+                        <span class="row-lbl">ClickHouse Buffer</span>
+                        <span class="row-val c-warn" id="elite-ch-buffer">--%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              <!-- RIGHT PANEL -->
+              <div class="frosted side-panel anim-3">
+                <div class="side-panel-inner">
+
+                  <!-- Top Sources -->
+                  <div class="widget" draggable="true" data-ov-id="sources">
+                    <div class="w-head">
+                      <span class="w-title">Top Sources</span>
+                      <span class="w-sub danger">By Alerts</span>
+                    </div>
+                    <div class="modern-bars" id="elite-sources-bars">
+                      <!-- Dynamic Source Bars -->
+                    </div>
+                  </div>
+
+                  <div class="soft-divider"></div>
+
+                  <!-- Impacted Hosts -->
+                  <div class="widget" draggable="true" data-ov-id="hosts">
+                    <div class="w-head">
+                      <span class="w-title">Impacted Hosts</span>
+                      <span class="w-sub">Vol / Hr</span>
+                    </div>
+                    <div class="modern-bars" id="elite-hosts-bars">
+                      <!-- Dynamic Host Bars -->
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+            </div>
+
+            <!-- BOTTOM DOCK: Telemetry Chart -->
+            <div class="dock-container anim-4">
+              <div class="frosted dock" draggable="true" data-ov-id="recent">
+                <div class="w-head" style="padding:0">
+                  <span class="w-title" style="font-size: 16px;">Log & Event Telemetry</span>
+                  <span class="w-sub" style="font-size:12px">60 Minute Window</span>
+                </div>
+                <div class="chart-wrap"><canvas id="elite-trendChart"></canvas></div>
+              </div>
+            </div>
+
+          </div>
+          <!-- PERCEPTA by OFF-Sec Projections — All Rights Reserved -->
+          <div class="pane-brand-watermark">PERCEPTA by OFF-Sec Projections</div>
+        </section>
+
+        <section id="paneAlerts" class="pane">
+          <div class="split">
+            <div class="card">
+              <div class="hd">
+                <h2 data-i18n="alerts.title">Alerts</h2>
+                <div class="pane-head-actions">
+                  <div class="muted text-12" data-i18n="alerts.subtitle">Paginated</div>
+                  <div class="miniActions mini-actions-center" id="alertsPager">
+                    <button class="btn sm" id="alertsPrevPage">← Prev</button>
+                    <span class="muted text-12" id="alertsPageLabel">Page 1/1</span>
+                    <button class="btn sm" id="alertsNextPage">Next →</button>
+                  </div>
+                  <div class="miniActions mini-actions-center" id="alertsBulkActions">
+                    <span class="muted text-12" id="alertsBulkCount">Selected: 0</span>
+                    <button class="btn sm" id="alertsBulkAck" disabled>Ack Selected</button>
+                    <button class="btn sm" id="alertsBulkResolve" disabled>Resolve Selected</button>
+                  </div>
+                </div>
+              </div>
+              <div class="bd">
+                <div class="paneScope">
+                  <div class="tabBar tabbar-tight" id="alertsScopeTabs">
+                    <button class="tabBtn active" data-scope="alerts" data-key="queue">Queue</button>
+                    <button class="tabBtn" data-scope="alerts" data-key="investigating">Investigating</button>
+                    <button class="tabBtn" data-scope="alerts" data-key="resolved">Resolved</button>
+                    <button class="tabBtn" data-scope="alerts" data-key="false_positive">False Positive</button>
+                  </div>
+                  <div class="scopeMeta" id="alertsScopeMeta">All open + historical alerts</div>
+                </div>
+                <div class="kpiStrip" id="alertsKpiStrip"></div>
+                <div class="alerts-filter-bar" id="alertsFilterBar">
+                  <div class="filter-group">
+                    <input type="search" id="alertsSearchQ" class="filter-input" placeholder="Search: keyword, severity:high, host:web01, NOT brute…" autocomplete="off">
+                  </div>
+                  <div class="filter-group filter-group-selects">
+                    <select id="alertsFilterSeverity" class="filter-select" title="Filter by severity">
+                      <option value="">All Severities</option>
+                      <option value="critical">Critical</option>
+                      <option value="high">High</option>
+                      <option value="medium">Medium</option>
+                      <option value="low">Low</option>
+                      <option value="info">Info</option>
+                    </select>
+                    <select id="alertsFilterCategory" class="filter-select" title="Filter by category">
+                      <option value="">All Categories</option>
+                    </select>
+                    <select id="alertsFilterAgent" class="filter-select" title="Filter by agent">
+                      <option value="">All Agents</option>
+                    </select>
+                    <select id="alertsFilterSort" class="filter-select" title="Sort by">
+                      <option value="last_seen">Last Seen</option>
+                      <option value="first_seen">First Seen</option>
+                      <option value="severity">Severity</option>
+                      <option value="count">Count</option>
+                    </select>
+                    <select id="alertsFilterOrder" class="filter-select" title="Sort order">
+                      <option value="desc">Desc ↓</option>
+                      <option value="asc">Asc ↑</option>
+                    </select>
+                  </div>
+                  <div class="filter-group filter-group-dates">
+                    <label class="filter-label">From</label>
+                    <input type="datetime-local" id="alertsFilterFrom" class="filter-input filter-date">
+                    <label class="filter-label">To</label>
+                    <input type="datetime-local" id="alertsFilterTo" class="filter-input filter-date">
+                    <button class="btn sm" id="alertsFilterApply">Apply Filters</button>
+                    <button class="btn sm ghost" id="alertsFilterReset">Reset</button>
+                  </div>
+                </div>
+                <div class="tableWrap" id="tblAlertsWrap">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th data-i18n="tbl.lastSeen">Last Seen</th>
+                        <th data-i18n="tbl.sev">Sev</th>
+                        <th data-i18n="tbl.ruleMessage">Rule / Message</th>
+                        <th data-i18n="tbl.agent">Agent</th>
+                        <th data-i18n="tbl.status">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tblAlerts"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="hd">
+                <h2 data-i18n="alerts.details.title">Alert Details</h2>
+                <div class="muted text-12" data-i18n="alerts.details.hint">Escalation actions depend on your role
+                  permissions</div>
+              </div>
+              <div class="bd">
+                <div id="alertDetails" class="details"></div>
+              </div>
+            </div>
+          </div>
+          <!-- PERCEPTA by OFF-Sec Projections — All Rights Reserved -->
+          <div class="pane-brand-watermark">PERCEPTA by OFF-Sec Projections</div>
+        </section>
+
+        <section id="paneEvents" class="pane">
+          <div class="split" id="eventsSplit">
+            <div class="card">
+              <div class="hd">
+                <h2 data-i18n="nav.events">Events</h2>
+                <div class="pane-head-actions">
+                  <div class="muted text-12">Paginated</div>
+                  <div class="miniActions mini-actions-center" id="eventsPager">
+                    <button class="btn sm" id="eventsPrevPage">← Prev</button>
+                    <span class="muted text-12" id="eventsPageLabel">Page 1/1</span>
+                    <button class="btn sm" id="eventsNextPage">Next →</button>
+                  </div>
+                  <div class="miniActions">
+                    <button class="btn sm" id="exportEventsJson" data-i18n="btn.exportJson">Export JSON</button>
+                    <button class="btn sm" id="exportEventsCsv" data-i18n="btn.exportCsv">Export CSV</button>
+                    <button class="btn sm" id="clearEventsBtn" data-i18n="btn.clearEvents">Clear Events</button>
+                  </div>
+                </div>
+              </div>
+              <div class="bd">
+                <div class="paneScope">
+                  <div class="tabBar tabbar-tight" id="eventsScopeTabs">
+                    <button class="tabBtn active" data-scope="events" data-key="timeline">Timeline</button>
+                    <button class="tabBtn" data-scope="events" data-key="process">Process</button>
+                    <button class="tabBtn" data-scope="events" data-key="network">Network</button>
+                    <button class="tabBtn" data-scope="events" data-key="auth">Auth</button>
+                    <button class="tabBtn" data-scope="events" data-key="file">File/Registry</button>
+                  </div>
+                  <div class="scopeMeta" id="eventsScopeMeta">All normalized events</div>
+                </div>
+                <!-- Hunt Query Bar -->
+                <div class="alerts-filter-bar hunt-query-bar" id="huntQueryBar">
+                  <div class="filter-group">
+                    <input type="search" id="huntQueryInput" class="filter-input" placeholder="Hunt: keyword, category:network, host:webserver, src_ip:10.0.0.1, user:admin, process:powershell…" autocomplete="off">
+                  </div>
+                  <div class="filter-group filter-group-selects">
+                    <select id="huntFilterCategory" class="filter-select" title="Filter by category">
+                      <option value="">All Categories</option>
+                      <option value="process">Process</option>
+                      <option value="network">Network</option>
+                      <option value="auth">Authentication</option>
+                      <option value="file">File/Registry</option>
+                      <option value="dns">DNS</option>
+                      <option value="web">Web</option>
+                    </select>
+                    <select id="huntFilterSeverity" class="filter-select" title="Filter by severity">
+                      <option value="">All Severities</option>
+                      <option value="critical">Critical</option>
+                      <option value="high">High</option>
+                      <option value="medium">Medium</option>
+                      <option value="low">Low</option>
+                      <option value="info">Info</option>
+                    </select>
+                    <select id="huntLookback" class="filter-select" title="Lookback period">
+                      <option value="1">Last 1h</option>
+                      <option value="6">Last 6h</option>
+                      <option value="24">Last 24h</option>
+                      <option value="168" selected>Last 7d</option>
+                      <option value="720">Last 30d</option>
+                    </select>
+                    <button class="btn sm" id="huntQueryApply">Hunt</button>
+                    <button class="btn sm ghost" id="huntQueryReset">Reset</button>
+                    <button class="btn sm ghost" id="huntSaveSearch" title="Save this search">Save Search</button>
+                  </div>
+                </div>
+                <div class="presetBar" id="eventsPresetBar">
+                  <span class="title" data-i18n="events.presets.title">Column Presets</span>
+                  <button class="btn sm" data-col-preset="default" data-i18n="events.presets.default">Default</button>
+                  <button class="btn sm" data-col-preset="process" data-i18n="events.presets.process">Process
+                    Hunt</button>
+                  <button class="btn sm" data-col-preset="network" data-i18n="events.presets.network">Network
+                    Hunt</button>
+                  <button class="btn sm" data-col-preset="auth" data-i18n="events.presets.auth">Auth Hunt</button>
+                  <button class="btn sm" data-col-preset="file" data-i18n="events.presets.file">FIM Hunt</button>
+                  <button class="btn sm eventsColsManageBtn" id="eventsColumnsManageBtn"
+                    title="Show/Hide/Add/Reorder fields">Fields</button>
+                </div>
+                <div class="kpiStrip" id="eventsKpiStrip"></div>
+                <div class="tableWrap">
+                  <table id="eventsTable" class="data-table">
+                    <colgroup>
+                      <col width="120" />
+                      <col width="56" />
+                      <col width="110" />
+                      <col width="96" />
+                      <col width="140" />
+                      <col width="120" />
+                      <col width="110" />
+                      <col width="110" />
+                      <col width="140" />
+                      <col width="160" />
+                      <col width="320" />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th data-i18n="tbl.time">Time</th>
+                        <th data-i18n="tbl.sev">Sev</th>
+                        <th data-i18n="tbl.user">User</th>
+                        <th data-i18n="tbl.agent">Agent</th>
+                        <th data-i18n="tbl.host">Host</th>
+                        <th data-i18n="tbl.agentIp">Agent IP</th>
+                        <th data-i18n="tbl.src">Src</th>
+                        <th data-i18n="tbl.dst">Dst</th>
+                        <th data-i18n="tbl.process">Process</th>
+                        <th data-i18n="tbl.object">Object</th>
+                        <th data-i18n="tbl.summary">Summary</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tblEvents"></tbody>
+                  </table>
+                  <div id="eventsPagination"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- PERCEPTA by OFF-Sec Projections — All Rights Reserved -->
+          <div class="pane-brand-watermark">PERCEPTA by OFF-Sec Projections</div>
+        </section>
+
+        <section id="paneHoneypot" class="pane">
+          <div class="split split-single">
+
+            <!-- ── Trap Intelligence Strip ── -->
+            <div class="hp-intel-strip" id="hpIntelStrip">
+              <div class="hp-intel-card">
+                <div class="hp-intel-val" id="hpTotalTraps">0</div>
+                <div class="hp-intel-lbl">Total Trap Hits</div>
+              </div>
+              <div class="hp-intel-card">
+                <div class="hp-intel-val" id="hpUniqueAttackers">0</div>
+                <div class="hp-intel-lbl">Unique Attackers</div>
+              </div>
+              <div class="hp-intel-card accent">
+                <div class="hp-intel-val" id="hpCredAttempts">0</div>
+                <div class="hp-intel-lbl">Credential Attempts</div>
+              </div>
+              <div class="hp-intel-card warn">
+                <div class="hp-intel-val" id="hpPortTraps">0</div>
+                <div class="hp-intel-lbl">Port Trap Hits</div>
+              </div>
+              <div class="hp-intel-card">
+                <div class="hp-intel-val" id="hpWebProbes">0</div>
+                <div class="hp-intel-lbl">Web Probes</div>
+              </div>
+              <div class="hp-intel-card">
+                <div class="hp-intel-val" id="hpAutoBlocked">0</div>
+                <div class="hp-intel-lbl">Auto-Blocked IPs</div>
+              </div>
+            </div>
+
+            <!-- ── Top Attackers Panel ── -->
+            <details class="hp-attackers-panel" id="hpAttackersPanel" open>
+              <summary class="hp-attackers-summary">Top Attackers &amp; Trap Breakdown</summary>
+              <div class="hp-attackers-body">
+                <div class="hp-attackers-list" id="hpTopAttackersList">
+                  <div class="muted p-12">Loading trap statistics...</div>
+                </div>
+                <div class="hp-trap-breakdown" id="hpTrapBreakdown">
+                  <div class="muted p-12">Loading...</div>
+                </div>
+              </div>
+            </details>
+
+            <div class="card">
+              <div class="hd">
+                <h2 data-i18n="nav.honeypot">Honeypot Events</h2>
+                <div class="pane-head-actions">
+                  <div class="muted text-12">Live Feed &middot; Built-in Traps + External Sensors</div>
+                  <div class="miniActions">
+                    <button class="btn sm" id="exportHoneypotJson" data-i18n="btn.exportJson">Export JSON</button>
+                    <button class="btn sm" id="exportHoneypotCsv" data-i18n="btn.exportCsv">Export CSV</button>
+                  </div>
+                </div>
+              </div>
+              <div class="bd">
+                <div class="paneScope">
+                  <div class="tabBar tabbar-tight" id="honeypotScopeTabs">
+                    <button class="tabBtn active" data-scope="honeypot" data-key="all">All</button>
+                    <button class="tabBtn" data-scope="honeypot" data-key="auth">Auth/Creds</button>
+                    <button class="tabBtn" data-scope="honeypot" data-key="web">Web Probes</button>
+                    <button class="tabBtn" data-scope="honeypot" data-key="lateral">Lateral</button>
+                    <button class="tabBtn" data-scope="honeypot" data-key="trap">Trap Hits</button>
+                    <button class="tabBtn" data-scope="honeypot" data-key="tcp">TCP Ports</button>
+                  </div>
+                  <div class="scopeMeta" id="honeypotScopeMeta">All honeypot-derived events</div>
+                </div>
+                <div class="kpiStrip" id="honeypotKpiStrip"></div>
+                <div class="tableWrap" id="tblHoneypotWrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th data-i18n="tbl.time">Time</th>
+                        <th data-i18n="tbl.sev">Sev</th>
+                        <th data-i18n="tbl.attacker">Attacker</th>
+                        <th>Trap</th>
+                        <th data-i18n="tbl.target">Target</th>
+                        <th data-i18n="tbl.activity">Activity</th>
+                        <th data-i18n="tbl.outcome">Outcome</th>
+                        <th>Block</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tblHoneypot"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- PERCEPTA by OFF-Sec Projections — All Rights Reserved -->
+          <div class="pane-brand-watermark">PERCEPTA by OFF-Sec Projections</div>
+        </section>
+
+        <section id="paneIds" class="pane">
+          <div class="split split-single">
+            <div class="card">
+              <div class="hd ids-hd">
+                <h2 data-i18n="nav.ids">IDS / IPS</h2>
+                <div class="pane-head-actions-left">
+                  <div class="muted text-12">Intrusion Detection &amp; Prevention · Live Signatures</div>
+                  <div class="miniActions">
+                    <button class="btn sm" id="exportIdsJson" data-i18n="btn.exportJson">⤓ JSON</button>
+                    <button class="btn sm" id="exportIdsCsv" data-i18n="btn.exportCsv">⤓ CSV</button>
+                  </div>
+                </div>
+              </div>
+              <div class="bd">
+                <!-- IDS KPI strip (enhanced) -->
+                <div id="idsKpiStrip" class="ids-kpi-strip">
+                  <div class="ids-kpi"><span class="ids-kpi-num" id="idsKpiTotal">—</span><span
+                      class="ids-kpi-label">Total Detections</span></div>
+                  <div class="ids-kpi"><span class="ids-kpi-num ids-kpi-scope" id="idsKpiScope">—</span><span
+                      class="ids-kpi-label">In Scope</span></div>
+                  <div class="ids-kpi"><span class="ids-kpi-num ids-kpi-blocked" id="idsKpiBlocked">—</span><span
+                      class="ids-kpi-label">Blocked</span></div>
+                  <div class="ids-kpi"><span class="ids-kpi-num ids-kpi-malware" id="idsKpiMalware">—</span><span
+                      class="ids-kpi-label">Malware / C2</span></div>
+                  <div class="ids-kpi"><span class="ids-kpi-num ids-kpi-scan" id="idsKpiScan">—</span><span
+                      class="ids-kpi-label">Recon / Scan</span></div>
+                </div>
+
+                <!-- Scope tabs -->
+                <div class="paneScope ids-scope-wrap">
+                  <div class="tabBar tabbar-tight" id="idsScopeTabs">
+                    <button class="tabBtn active" data-scope="ids" data-key="detections">🔍 Detections</button>
+                    <button class="tabBtn" data-scope="ids" data-key="block">🛡 Blocked</button>
+                    <button class="tabBtn" data-scope="ids" data-key="malware">☠ Malware / C2</button>
+                    <button class="tabBtn" data-scope="ids" data-key="scan">📡 Recon / Scan</button>
+                  </div>
+                  <div class="scopeMeta" id="idsScopeMeta">All IDS/IPS signatures · click a row for details</div>
+                </div>
+
+                <!-- Top signatures breakdown -->
+                <div id="idsTopSigs" class="ids-top-sigs"></div>
+
+                <!-- Detection table -->
+                <div class="tableWrap" id="tblIdsWrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th data-i18n="tbl.time">Time</th>
+                        <th data-i18n="tbl.sev">Sev</th>
+                        <th data-i18n="tbl.signature">Signature</th>
+                        <th data-i18n="tbl.action">Action</th>
+                        <th data-i18n="tbl.flow">Flow</th>
+                        <th data-i18n="tbl.proto">Proto</th>
+                        <th data-i18n="tbl.agent">Agent</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tblIds"></tbody>
+                  </table>
+                </div>
+
+                <!-- Empty state -->
+                <div id="idsEmptyState" class="ids-empty-state is-hidden">
+                  <div class="ids-empty-icon">🛡</div>
+                  <div class="ids-empty-title">No IDS/IPS detections</div>
+                  <div class="ids-empty-desc">When Suricata or compatible IDS engines report signatures, detections
+                    appear here in real-time.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Hidden rule editing elements (used by Settings → Rules) -->
+          <textarea id="idsRulesEditor" class="is-hidden"></textarea>
+          <select id="idsRulesVersionSelect" class="is-hidden"></select>
+          <!-- PERCEPTA by OFF-Sec Projections — All Rights Reserved -->
+          <div class="pane-brand-watermark">PERCEPTA by OFF-Sec Projections</div>
+        </section>
+
+        <section id="paneEscalations" class="pane">
+          <div class="split split-single">
+            <div class="card">
+              <div class="hd">
+                <h2 data-i18n="nav.escalations">Escalations</h2>
+                <div class="pane-head-actions-left">
+                  <div class="muted text-12">Security Operations · Incident Workflow</div>
+                  <div class="miniActions">
+                    <button class="btn sm" id="escRefreshBtn" title="Refresh escalation data">↻ Refresh</button>
+                    <button class="btn sm" id="escExportBtn" title="Export all escalations as JSON">⤓ Export</button>
+                  </div>
+                </div>
+              </div>
+              <div class="bd">
+                <!-- Escalation KPI strip -->
+                <div id="escKpiStrip">
+                  <div class="esc-kpi"><span class="esc-kpi-num" id="escKpiTotal">—</span><span
+                      class="esc-kpi-label">Total</span></div>
+                  <div class="esc-kpi"><span class="esc-kpi-num esc-kpi-open" id="escKpiOpen">—</span><span
+                      class="esc-kpi-label">Open</span></div>
+                  <div class="esc-kpi"><span class="esc-kpi-num esc-kpi-approved" id="escKpiApproved">—</span><span
+                      class="esc-kpi-label">Approved</span></div>
+                  <div class="esc-kpi"><span class="esc-kpi-num esc-kpi-rejected" id="escKpiRejected">—</span><span
+                      class="esc-kpi-label">Rejected</span></div>
+                  <div class="esc-kpi"><span class="esc-kpi-num esc-kpi-closed" id="escKpiClosed">—</span><span
+                      class="esc-kpi-label">Closed</span></div>
+                </div>
+
+                <!-- Tabs: Queue | Create | Review -->
+                <div class="paneScope">
+                  <div class="tabBar tabbar-tight" id="escTabs">
+                    <button class="tabBtn active" data-esc-tab="queue">⚡ Queue</button>
+                    <button class="tabBtn" data-esc-tab="create">＋ New Escalation</button>
+                    <button class="tabBtn" data-esc-tab="review">🛡 Authority Review</button>
+                  </div>
+                  <div class="scopeMeta" id="escScopeMeta">All escalations · click a row for details</div>
+                </div>
+
+                <!-- TAB: Queue (all escalations list) -->
+                <div class="escTabPane active" data-esc-pane="queue">
+                  <div id="escQueueWrap">
+                    <div class="muted loading-inline-center">Loading escalations…</div>
+                  </div>
+                </div>
+
+                <!-- TAB: Create -->
+                <div class="escTabPane" data-esc-pane="create">
+                  <div class="esc-create-layout">
+                    <div class="esc-create-form-wrap">
+                      <div class="esc-form-hd">
+                        <span class="esc-form-hd-icon">⚡</span>
+                        <div>
+                          <div class="esc-form-hd-title">Create Escalation</div>
+                          <div class="muted text-11">Raise a new incident for analyst review and triage</div>
+                        </div>
+                      </div>
+                      <form id="createEscForm">
+                        <div class="esc-form-grid">
+                          <label class="esc-form-label" for="escTitle">Title <span
+                              class="required-mark">*</span></label>
+                          <input class="field" id="escTitle" name="title" required
+                            placeholder="Brief incident summary" />
+
+                          <label class="esc-form-label" for="escPriority">Priority</label>
+                          <select class="field" id="escPriority" name="priority">
+                            <option value="medium" selected>Medium</option>
+                            <option value="critical">Critical</option>
+                            <option value="high">High</option>
+                            <option value="low">Low</option>
+                          </select>
+
+                          <label class="esc-form-label" for="escEventHash">Event Hash</label>
+                          <input class="field" id="escEventHash" name="event_hash"
+                            placeholder="Optional — link to a specific event" />
+
+                          <label class="esc-form-label label-top-pad" for="escDesc">Description</label>
+                          <textarea class="field" id="escDesc" name="description" rows="7"
+                            placeholder="Provide context, IOCs, affected hosts, timeline.&#10;Use AlertId: xxx to correlate with existing alerts."></textarea>
+                        </div>
+                        <div class="esc-form-actions">
+                          <button class="btn primary" type="submit">Submit Escalation</button>
+                          <a class="btn link-btn-inline" href="/login">Login as Analyst</a>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- TAB: Authority Review -->
+                <div class="escTabPane" data-esc-pane="review">
+                  <div id="escReviewWrap">
+                    <div class="muted loading-inline-center">Loading authority review…</div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+          <div class="pane-brand-watermark">PERCEPTA by OFF-Sec Projections</div>
+        </section>
+
+        <!-- ══════════ Playbooks / SOAR ══════════ -->
+        <section id="panePlaybooks" class="pane">
+          <div class="split split-single">
+            <div class="card">
+              <div class="hd">
+                <h2>Playbooks <span class="muted pane-title-sub">SOAR Automation</span></h2>
+                <div class="row-inline-center">
+                  <label class="row-inline-center text-12" title="Toggle live execution mode">
+                    <input type="checkbox" id="pbLiveToggle">
+                    <span id="pbLiveLabel" class="muted"><strong>Dry-run</strong></span>
+                  </label>
+                  <button class="btnSm accent" id="pbNewBtn">+ New Playbook</button>
+                  <button class="btnSm" id="pbRefreshBtn">↻ Refresh</button>
+                </div>
+              </div>
+              <div class="bd" id="pbContent">
+                <div class="muted p-24 ta-center">Loading playbooks…</div>
+              </div>
+            </div>
+            <div class="card" id="pbRunsCard">
+              <div class="hd">
+                <h2>Recent Runs</h2>
+              </div>
+              <div class="bd" id="pbRunsContent">
+                <div class="muted p-24 ta-center">Loading run history…</div>
+              </div>
+            </div>
+          </div>
+          <div class="pane-brand-watermark">PERCEPTA by OFF-Sec Projections</div>
+        </section>
+
+        <!-- ══════════ Reactive Response ══════════ -->
+        <section id="paneResponse" class="pane">
+          <div class="split split-single">
+            <div class="card">
+              <div class="hd">
+                <h2>Reactive Response <span class="muted pane-title-sub">Containment &amp; Blocks</span></h2>
+                <div class="row-inline">
+                  <button class="btnSm accent" id="respBlockIpBtn">Block IP</button>
+                  <button class="btnSm accent" id="respBlockUserBtn">Block User</button>
+                  <button class="btnSm" id="respRefreshBtn">↻ Refresh</button>
+                </div>
+              </div>
+              <div class="bd" id="respContent">
+                <div class="muted p-24 ta-center">Loading active blocks…</div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="hd">
+                <h2>Command Dispatch</h2>
+              </div>
+              <div class="bd" id="respDispatchContent">
+                <div class="row-inline-end">
+                  <div class="flex-1-min-200">
+                    <label class="muted text-12">Agent</label>
+                    <select id="respDispatchAgent" class="inp field-full"></select>
+                  </div>
+                  <div class="flex-1-min-180">
+                    <label class="muted text-12">Command Type</label>
+                    <select id="respDispatchKind" class="inp field-full">
+                      <option value="block_ip">Block IP</option>
+                      <option value="unblock_ip">Unblock IP</option>
+                      <option value="disable_user">Disable User</option>
+                      <option value="enable_user">Enable User</option>
+                      <option value="logoff_user">Logoff User</option>
+                      <option value="isolate_host">Isolate Host</option>
+                      <option value="restore_network">Restore Network</option>
+                      <option value="lock_workstation">Lock Workstation</option>
+                      <option value="triage_bundle">Triage Bundle</option>
+                      <option value="custom">Custom Command</option>
+                    </select>
+                  </div>
+                  <div class="flex-2-min-250">
+                    <label class="muted text-12">Value / Command</label>
+                    <input id="respDispatchCmd" class="inp field-full"
+                      placeholder="e.g., 192.168.1.1 or username or command">
+                  </div>
+                  <button class="btnSm accent" id="respDispatchBtn">Send</button>
+                </div>
+                <pre id="respDispatchResult" class="code code-result is-hidden"></pre>
+              </div>
+            </div>
+          </div>
+          <div class="pane-brand-watermark">PERCEPTA by OFF-Sec Projections</div>
+        </section>
+
+        <!-- ══════════ Audit Log ══════════ -->
+        <section id="paneAudit" class="pane">
+          <div class="split split-single">
+            <div class="card">
+              <div class="hd">
+                <h2>Audit Log <span class="muted pane-title-sub">Reactive Action History</span></h2>
+                <button class="btnSm" id="auditRefreshBtn">↻ Refresh</button>
+              </div>
+              <div class="bd">
+                <div class="tableWrap table-maxh-600">
+                  <table class="tbl">
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>Action</th>
+                        <th>Target</th>
+                        <th>User</th>
+                        <th>Details</th>
+                      </tr>
+                    </thead>
+                    <tbody id="auditTbody"></tbody>
+                  </table>
+                </div>
+                <div class="muted p-24 ta-center" id="auditEmpty">No audit entries yet.</div>
+              </div>
+            </div>
+          </div>
+          <div class="pane-brand-watermark">PERCEPTA by OFF-Sec Projections</div>
+        </section>
+
+        <!-- ══════════ Cases ══════════ -->
+        <section id="paneCases" class="pane">
+          <div class="split split-single">
+            <div class="card">
+              <div class="hd">
+                <h2>Cases <span class="muted pane-title-sub">Incident Management</span></h2>
+                <div class="row-inline-center">
+                  <select class="inp field-text-sm" id="casesFilterStatus">
+                    <option value="">All Statuses</option>
+                    <option value="open">Open</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                  <button class="btnSm accent" id="casesNewBtn">+ New Case</button>
+                  <button class="btnSm" id="casesRefreshBtn">↻ Refresh</button>
+                </div>
+              </div>
+              <div class="bd">
+                <div class="miniStatRow mb-10">
+                  <span class="muted text-12">Total: <strong id="casesStatTotal">0</strong></span>
+                  <span class="muted text-12">Open: <strong id="casesStatOpen" class="text-ok">0</strong></span>
+                  <span class="muted text-12">In Progress: <strong id="casesStatInProgress"
+                      class="text-warn">0</strong></span>
+                  <span class="muted text-12">Closed: <strong id="casesStatClosed">0</strong></span>
+                </div>
+                <div id="casesContent">
+                  <div class="muted p-24 ta-center">Loading cases…</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="pane-brand-watermark">PERCEPTA by OFF-Sec Projections</div>
+        </section>
+
+        <!-- ══════════ Compliance ══════════ -->
+        <section id="paneCompliance" class="pane">
+          <div class="split split-single">
+            <div class="card">
+              <div class="hd">
+                <h2>Compliance <span class="muted pane-title-sub">Framework Mapping</span></h2>
+                <div class="row-inline-center">
+                  <select class="inp field-text-sm field-min-180" id="complianceFrameworkSelect">
+                    <option value="">Select framework…</option>
+                  </select>
+                  <button class="btnSm" id="complianceRefreshBtn">↻ Refresh</button>
+                </div>
+              </div>
+              <div class="bd">
+                <div class="miniStatRow mb-10">
+                  <span class="muted text-12">Controls: <strong id="complianceStatTotal">0</strong></span>
+                  <span class="muted text-12">Covered: <strong id="complianceStatCovered"
+                      class="text-ok">0</strong></span>
+                  <span class="muted text-12">Partial: <strong id="complianceStatPartial"
+                      class="text-warn">0</strong></span>
+                  <span class="muted text-12">Gaps: <strong id="complianceStatGaps"
+                      class="text-danger">0</strong></span>
+                </div>
+                <div id="complianceOverview" class="mb-16"></div>
+                <div id="complianceContent">
+                  <div class="muted p-24 ta-center">Select a compliance framework above to view control mappings.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="pane-brand-watermark">PERCEPTA by OFF-Sec Projections</div>
+        </section>
+
+        <!-- ══════════ Reports ══════════ -->
+        <section id="paneReports" class="pane">
+          <div class="split split-single">
+            <div class="card">
+              <div class="hd">
+                <h2>Reports <span class="muted pane-title-sub">Generate &amp; Export</span></h2>
+                <div class="row-inline-center">
+                  <select class="inp field-text-sm" id="reportsType">
+                    <option value="executive_summary">Executive Summary</option>
+                    <option value="threat_landscape">Threat Landscape</option>
+                    <option value="compliance_posture">Compliance Posture</option>
+                    <option value="incident_timeline">Incident Timeline</option>
+                    <option value="agent_health">Agent Health</option>
+                  </select>
+                  <select class="inp field-text-sm" id="reportsRange">
+                    <option value="24h">Last 24h</option>
+                    <option value="7d">Last 7 days</option>
+                    <option value="30d">Last 30 days</option>
+                  </select>
+                  <select class="inp field-text-sm" id="reportsFormat">
+                    <option value="json">JSON</option>
+                    <option value="csv">CSV</option>
+                    <option value="pdf">PDF</option>
+                    <option value="docx">DOCX</option>
+                  </select>
+                  <button class="btnSm accent" id="reportsGenerateBtn">Generate</button>
+                  <button class="btnSm" id="reportsRefreshBtn">↻ Refresh</button>
+                  <span class="muted text-11" id="reportsStatus"></span>
+                </div>
+              </div>
+              <div class="bd" id="reportsListContent">
+                <div class="muted p-24 ta-center">Loading reports…</div>
+              </div>
+            </div>
+          </div>
+          <div class="pane-brand-watermark">PERCEPTA by OFF-Sec Projections</div>
+        </section>
+
+        <!-- ══════════ Detection Coverage ══════════ -->
+        <section id="paneDetection" class="pane">
+          <div class="split split-single">
+            <div class="card">
+              <div class="hd">
+                <h2>Detection Coverage <span class="muted pane-title-sub">MITRE ATT&amp;CK Matrix</span></h2>
+                <button class="btnSm" id="detectionRefreshBtn">↻ Refresh</button>
+              </div>
+              <div class="bd" id="detectionCoverageContent">
+                <div class="muted p-24 ta-center">Loading MITRE ATT&amp;CK coverage…</div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="hd">
+                <h2>Detection Effectiveness</h2>
+              </div>
+              <div class="bd" id="detectionEffContent">
+                <div class="muted p-24 ta-center">Loading effectiveness metrics…</div>
+              </div>
+            </div>
+          </div>
+          <div class="pane-brand-watermark">PERCEPTA by OFF-Sec Projections</div>
+        </section>
+
+        <section id="paneSocTools" class="pane">
+          <div class="split soc-tools-split">
+            <div class="card soc-span-full">
+              <div class="hd">
+                <h2>SOC Tools Control Center</h2>
+                <div class="soc-actions-inline">
+                  <button class="btnSm" id="socToolsRefreshBtn">↻ Refresh</button>
+                  <button class="btnSm warn" id="socAutoCloseBtn">Auto-close stale alerts</button>
+                </div>
+              </div>
+              <div class="bd muted soc-intro-text">Merged backup + current modules. This pane centralizes modern SOC
+                workflows (PKI, IOC, DLP, RBAC, Assets, Webhooks, MITRE, Saved Searches, Vulnerabilities, Tenants).
+              </div>
+            </div>
+
+            <div class="card soc-core-card">
+              <div class="hd">
+                <h2>PKI Health</h2>
+              </div>
+              <div class="bd" id="pkiHealthContent">
+                <div class="muted">Loading…</div>
+              </div>
+            </div>
+            <div class="card soc-core-card">
+              <div class="hd">
+                <h2>Alert Tuning</h2>
+              </div>
+              <div class="bd" id="alertTuningContent">
+                <div class="muted">Loading…</div>
+              </div>
+            </div>
+
+            <div class="card soc-core-card">
+              <div class="hd">
+                <h2>Source Health Detail</h2>
+              </div>
+              <div class="bd" id="sourceHealthDetailContent">
+                <div class="muted">Loading…</div>
+              </div>
+            </div>
+            <div class="card soc-core-card">
+              <div class="hd">
+                <h2>IDS Metrics</h2>
+              </div>
+              <div class="bd" id="idsMetricsContent">
+                <div class="muted">Loading…</div>
+              </div>
+            </div>
+
+            <div class="card soc-core-card">
+              <div class="hd">
+                <h2>SOC KPI Metrics</h2>
+                <span class="badge" style="font-size:10px;background:var(--accent,#4f8cff);color:#fff;">MTTR</span>
+              </div>
+              <div class="bd" id="socMttrContent">
+                <div class="muted">Loading…</div>
+              </div>
+            </div>
+            <div class="card soc-core-card">
+              <div class="hd">
+                <h2>Behavioral Anomaly (UEBA)</h2>
+                <span class="badge" style="font-size:10px;background:var(--accent2,#e08c36);color:#fff;">UEBA</span>
+              </div>
+              <div class="bd" id="uebaContent">
+                <div class="muted">Loading…</div>
+              </div>
+            </div>
+
+            <div class="card soc-span-full soc-group-break">
+              <div class="bd muted soc-intro-text">
+                Governance and authority controls were moved to <strong>Settings → Advanced</strong> to keep SOC Tools
+                focused on live operational telemetry.
+              </div>
+            </div>
+          </div>
+          <div class="pane-brand-watermark">PERCEPTA by OFF-Sec Projections</div>
+        </section>
+
+        <section id="paneSettings" class="pane">
+          <div class="split split-single">
+            <div class="card">
+              <div class="hd">
+                <h2 data-i18n="settings.title">Settings</h2>
+                <div class="muted settings-subtitle" data-i18n="settings.subtitle">Local browser UI</div>
+              </div>
+              <div class="bd">
+                <div class="muted settings-hint" data-i18n="settings.hint">These preferences are stored in this browser
+                  only and do not change server state.</div>
+
+                <!-- Mobile Dropdown Toggle (hidden on desktop) -->
+                <div class="settings-nav-strip" id="settingsNavStrip">
+                  <button class="settings-nav-toggle" id="settingsNavToggle" aria-expanded="false">
+                    <span class="settings-nav-toggle-icon">☰</span>
+                    <span class="settings-nav-toggle-label" id="settingsNavLabel">General</span>
+                    <span class="settings-nav-toggle-chevron">▾</span>
+                  </button>
+                  <div class="settings-nav-menu hidden" id="settingsNavMenu">
+                    <button class="settings-nav-item active" data-settings-tab="general"><span
+                        class="settings-nav-icon">⚙</span> General</button>
+                    <button class="settings-nav-item" data-settings-tab="agents"><span
+                        class="settings-nav-icon">📡</span> Agents</button>
+                    <button class="settings-nav-item" data-settings-tab="rules"><span
+                        class="settings-nav-icon">🛡</span> Rules</button>
+                    <button class="settings-nav-item" data-settings-tab="advanced"><span
+                        class="settings-nav-icon">🔬</span> Advanced</button>
+                    <button class="settings-nav-item" data-settings-tab="integrations"><span
+                        class="settings-nav-icon">🔌</span> Integrations</button>
+                  </div>
+                </div>
+
+                <!-- Desktop Horizontal Tabs (hidden on mobile) -->
+                <div class="settings-tabs-container">
+                  <div class="tabBar" id="settingsTabsBar">
+                    <button class="tabBtn active" data-settings-tab="general"><span class="settings-tab-icon">⚙</span>
+                      General</button>
+                    <button class="tabBtn" data-settings-tab="agents"><span class="settings-tab-icon">📡</span>
+                      Agents</button>
+                    <button class="tabBtn" data-settings-tab="rules"><span class="settings-tab-icon">🛡</span>
+                      Rules</button>
+                    <button class="tabBtn" data-settings-tab="advanced"><span class="settings-tab-icon">🔬</span>
+                      Advanced</button>
+                    <button class="tabBtn" data-settings-tab="integrations"><span class="settings-tab-icon">🔌</span>
+                      Integrations</button>
+                  </div>
+                </div>
+
+                <div class="settingsSubSection active" data-settings-pane="general">
+
+                  <!-- APPEARANCE CATEGORY -->
+                  <div class="settings-category">
+                    <h3 class="settings-category-title">🎨 Appearance</h3>
+
+                    <div class="settings-section">
+                      <div class="settings-section-header">
+                        <span class="settings-section-icon">🌐</span>
+                        <h4>Localization</h4>
+                      </div>
+                      <div class="settings-section-body">
+                        <div class="settings-item">
+                          <label data-i18n="settings.language">Language</label>
+                          <select id="uiLangSelect" class="field sm">
+                            <option value="en">English</option>
+                            <option value="ur">اردو</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="settings-section">
+                      <div class="settings-section-header">
+                        <span class="settings-section-icon">🎨</span>
+                        <h4>Branding</h4>
+                      </div>
+                      <div class="settings-section-body">
+                        <div class="settings-item">
+                          <label>Brand Style</label>
+                          <div style="display: flex; gap: var(--sp-2); align-items: center;">
+                            <button class="btn sm" id="btnCycleBrandStyle">Cycle Style</button>
+                            <span class="settings-status-badge local" id="brandStyleStatus">Classic</span>
+                          </div>
+                        </div>
+                        <div class="settings-help">Cycles header style between Classic, Minimal, and Neon.</div>
+
+                        <div class="settings-item">
+                          <label>Brand Position & Size</label>
+                          <div class="settings-button-group">
+                            <button class="btn xs compact-btn" id="btnBrandLeft" title="Move left">◄</button>
+                            <button class="btn xs compact-btn" id="btnBrandRight" title="Move right">►</button>
+                            <button class="btn xs compact-btn" id="btnBrandUp" title="Move up">▲</button>
+                            <button class="btn xs compact-btn" id="btnBrandDown" title="Move down">▼</button>
+                            <button class="btn xs compact-btn" id="btnBrandSmaller" title="Decrease size">−</button>
+                            <button class="btn xs compact-btn" id="btnBrandBigger" title="Increase size">+</button>
+                            <button class="btn xs compact-btn" id="btnBrandReset" title="Reset">⟳</button>
+                          </div>
+                          <div class="settings-help" id="brandLayoutStatus">x:0 y:0 size:100%</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- PERFORMANCE & BEHAVIOR CATEGORY -->
+                  <div class="settings-category">
+                    <h3 class="settings-category-title">⚡ Performance & Behavior</h3>
+
+                    <div class="settings-section">
+                      <div class="settings-section-header">
+                        <span class="settings-section-icon">📊</span>
+                        <h4>Display Modes</h4>
+                      </div>
+                      <div class="settings-section-body">
+                        <div class="settings-item">
+                          <label data-i18n="settings.density">Display Density</label>
+                          <div style="display: flex; gap: var(--sp-2); align-items: center;">
+                            <button class="btn sm" id="btnToggleDensityMode"
+                              data-i18n="settings.density.toggle">Toggle</button>
+                            <span class="settings-status-badge local" id="densityModeStatus"
+                              data-i18n="settings.density.auto">Auto</span>
+                          </div>
+                        </div>
+                        <div class="settings-help" data-i18n="settings.density.hint">Adaptive mode auto-compacts large
+                          displays so more telemetry fits without losing readability.</div>
+
+                        <div class="settings-item">
+                          <label data-i18n="settings.noc">NOC Wall Mode</label>
+                          <div style="display: flex; gap: var(--sp-2); align-items: center;">
+                            <button class="btn sm" id="btnToggleNocMode" data-i18n="settings.noc.toggle">Toggle</button>
+                            <span class="settings-status-badge local" id="nocModeStatus"
+                              data-i18n="settings.noc.off">Off</span>
+                          </div>
+                        </div>
+                        <div class="settings-help" data-i18n="settings.noc.hint">When enabled, the dashboard uses denser
+                          wallboard styling and auto-rotates primary SOC panes every 12s.</div>
+                      </div>
+                    </div>
+
+                    <div class="settings-section">
+                      <div class="settings-section-header">
+                        <span class="settings-section-icon">⚙</span>
+                        <h4>Resource Management</h4>
+                      </div>
+                      <div class="settings-section-body">
+                        <div class="settings-item">
+                          <label data-i18n="settings.performance">Performance Mode</label>
+                          <div style="display: flex; gap: var(--sp-2); align-items: center;">
+                            <button class="btn sm" id="btnTogglePerfMode"
+                              data-i18n="settings.performance.toggle">Toggle</button>
+                            <span class="settings-status-badge local" id="perfModeStatus"
+                              data-i18n="settings.performance.auto">Auto</span>
+                          </div>
+                        </div>
+                        <div class="settings-help" data-i18n="settings.performance.hint">Auto enables low-power visuals
+                          when disconnected/backgrounded. Manual mode lets you force On/Off.</div>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+
+                <div class="settingsSubSection" data-settings-pane="agents">
+
+                  <!-- Agent Fleet Overview KPI Strip -->
+                  <div class="settings-category">
+                    <h3 class="settings-category-title">📡 Agent Fleet Overview</h3>
+                    <div id="settingsAgentsSummary" class="miniStatRow"></div>
+                  </div>
+
+                  <!-- Agent Categories & Tabs -->
+                  <div class="settings-section">
+                    <div class="settings-section-header">
+                      <span class="settings-section-icon">📋</span>
+                      <h4>Agent Categories</h4>
+                    </div>
+                    <div class="settings-section-body" style="padding: var(--sp-3) var(--sp-3) var(--sp-1);">
+                      <div class="tabBar settings-agents-tabs" id="settingsAgentsTabs">
+                        <button class="tabBtn active" data-agents-cat="all">All</button>
+                        <button class="tabBtn" data-agents-cat="connected">✓ Connected</button>
+                        <button class="tabBtn" data-agents-cat="stale">△ Stale</button>
+                        <button class="tabBtn" data-agents-cat="offline">✗ Offline</button>
+                      </div>
+                      <div style="font-size: 11px; color: var(--muted); padding: 0 0 var(--sp-2) 0;">Agent
+                        classification by lifecycle status</div>
+                    </div>
+                  </div>
+
+                  <!-- Agent Bindings Section -->
+                  <div class="settings-section">
+                    <div class="settings-section-header">
+                      <span class="settings-section-icon">🔗</span>
+                      <h4>Agent Bindings</h4>
+                    </div>
+                    <div class="settings-section-body">
+                      <div
+                        style="font-size: 11px; color: var(--muted); margin-bottom: var(--sp-2); padding: var(--sp-2); background: rgba(255,255,255,0.02); border-radius: var(--radiusSm); border: 1px solid var(--stroke);"
+                        data-i18n="settings.agentBindingsHint">
+                        Shows agents that have a MAC binding and a stable local ordinal (Agent 1, Agent 2…).
+                      </div>
+                      <div id="settingsAgents" class="muted" data-i18n="common.loading">Loading…</div>
+                    </div>
+                  </div>
+
+                  <!-- Certificate Renewals Section -->
+                  <div class="settings-section">
+                    <div class="settings-section-header">
+                      <span class="settings-section-icon">🔐</span>
+                      <h4>Certificate Renewals</h4>
+                    </div>
+                    <div class="settings-section-body">
+                      <div id="settingsRenewals" class="muted" data-i18n="common.loading">Loading…</div>
+                    </div>
+                  </div>
+
+                  <!-- FIM Configuration Section -->
+                  <div class="settings-section">
+                    <div class="settings-section-header">
+                      <span class="settings-section-icon">🔍</span>
+                      <h4>File Integrity Monitoring (FIM)</h4>
+                    </div>
+                    <div class="settings-section-body">
+                      <div style="font-size:11px;color:var(--muted);margin-bottom:var(--sp-2);padding:var(--sp-2);background:rgba(255,255,255,0.02);border-radius:var(--radiusSm);border:1px solid var(--stroke);">
+                        Configure filesystem paths to monitor for changes. Paths are pushed to all connected agents via policy.
+                      </div>
+                      <div style="display:flex;flex-direction:column;gap:var(--sp-2);">
+                        <label style="font-size:12px;font-weight:600;color:var(--text-main);">Monitored Paths <span style="font-weight:400;color:var(--muted);">(one per line)</span></label>
+                        <textarea id="fimPathsInput" rows="6" placeholder="/etc&#10;/home&#10;/var/www" style="width:100%;font-family:var(--font-mono);font-size:12px;padding:8px 10px;border-radius:var(--radiusSm);border:1px solid var(--stroke);background:rgba(255,255,255,0.03);color:var(--text-main);resize:vertical;"></textarea>
+                        <div style="display:flex;gap:var(--sp-3);align-items:center;flex-wrap:wrap;">
+                          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-main);cursor:pointer;">
+                            <input type="checkbox" id="fimRecursiveCheck" checked>
+                            Recursive monitoring
+                          </label>
+                          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-main);">
+                            Debounce:
+                            <input type="number" id="fimDebounceInput" value="250" min="50" max="10000" step="50" style="width:80px;font-family:var(--font-mono);font-size:12px;padding:4px 6px;border-radius:var(--radiusSm);border:1px solid var(--stroke);background:rgba(255,255,255,0.03);color:var(--text-main);">
+                            <span style="color:var(--muted);">ms</span>
+                          </label>
+                        </div>
+                        <div style="display:flex;gap:var(--sp-2);align-items:center;">
+                          <button class="tabBtn" onclick="saveFimConfig()" style="padding:6px 16px;font-size:12px;">Save FIM Config</button>
+                          <span id="fimSaveStatus" style="font-size:11px;color:var(--muted);"></span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+
+                <div class="settingsSubSection" data-settings-pane="rules">
+
+                  <!-- ── KPI Strip ── -->
+                  <div class="rules-kpi-strip" id="rulesKpiStrip">
+                    <div class="rules-kpi"><span class="rules-kpi-num" id="rulesKpiTotal">—</span><span
+                        class="rules-kpi-label">Total Rules</span></div>
+                    <div class="rules-kpi"><span class="rules-kpi-num rules-kpi-enabled"
+                        id="rulesKpiEnabled">—</span><span class="rules-kpi-label">Enabled</span></div>
+                    <div class="rules-kpi"><span class="rules-kpi-num rules-kpi-disabled"
+                        id="rulesKpiDisabled">—</span><span class="rules-kpi-label">Disabled</span></div>
+                    <div class="rules-kpi"><span class="rules-kpi-num rules-kpi-versions"
+                        id="rulesKpiVersions">—</span><span class="rules-kpi-label">Versions</span></div>
+                    <div class="rules-kpi"><span class="rules-kpi-num rules-kpi-supps" id="rulesKpiSupps">—</span><span
+                        class="rules-kpi-label">Suppressions</span></div>
+                  </div>
+
+                  <!-- ── Workspace Tabs ── -->
+                  <div class="rules-workspace-strip">
+                    <button class="rules-ws-toggle" id="rulesWsToggle" aria-expanded="false">
+                      <span class="rules-ws-toggle-label" id="rulesWsLabel">➕ Rule Builder</span>
+                      <span class="rules-ws-toggle-chevron">▾</span>
+                    </button>
+                    <div class="rules-ws-menu hidden" id="rulesWsMenu">
+                      <button class="rules-ws-item active" data-rules-tab="builder">➕ Rule Builder</button>
+                      <button class="rules-ws-item" data-rules-tab="visual">🔧 Visual Tuning</button>
+                      <button class="rules-ws-item" data-rules-tab="editor">📝 Rule Editor</button>
+                      <button class="rules-ws-item" data-rules-tab="config">📁 Config Files</button>
+                      <button class="rules-ws-item" data-rules-tab="suppressions">🚫 Suppressions</button>
+                      <button class="rules-ws-item" data-rules-tab="versions">📋 Versions</button>
+                      <button class="rules-ws-item" data-rules-tab="sigma">⚡ Sigma Import</button>
+                    </div>
+                    <div class="rules-ws-meta" id="rulesWorkspaceMeta">Guided Rule Builder · No syntax required</div>
+                  </div>
+
+                  <!-- ── TAB: Rule Editor ── -->
+                  <div class="rulesTabPane" data-rules-pane="editor">
+                    <div class="rules-editor-toolbar">
+                      <div class="miniActions mini-actions-wrap">
+                        <button class="btn" id="rulesEditorLoad">⟳ Load Rules</button>
+                        <button class="btn primary" id="rulesEditorSave">💾 Save Rules</button>
+                        <button class="btn" id="rulesEditorFormat">Format</button>
+                        <span class="muted rules-editor-status settings-status" id="rulesEditorStatus">Ready</span>
+                      </div>
+                      <div class="row-inline-center">
+                        <input class="field sm rules-editor-search" id="rulesEditorSearch" type="text"
+                          placeholder="Search in editor…" />
+                        <span class="muted text-11 mono" id="rulesEditorLineCount">0 lines</span>
+                      </div>
+                    </div>
+                    <div class="rules-editor-wrap">
+                      <div class="rules-line-numbers" id="rulesLineNumbers"></div>
+                      <textarea id="rulesEditorArea" class="rules-editor-textarea" spellcheck="false" autocomplete="off"
+                        autocorrect="off" autocapitalize="off" wrap="off"
+                        placeholder="# Suricata rules will load here…&#10;# Click 'Load Rules' to fetch from server"></textarea>
+                    </div>
+                  </div>
+
+                  <!-- ── TAB: Visual Tuning ── -->
+                  <div class="rulesTabPane" data-rules-pane="visual">
+                    <div class="rules-visual-toolbar">
+                      <div class="miniActions mini-actions-wrap">
+                        <input class="field sm rules-visual-filter" id="rulesVisualFilter" type="text"
+                          placeholder="Filter by SID, message, action…" />
+                        <button class="btn sm" id="rulesVisualEnableAll">Enable Filtered</button>
+                        <button class="btn sm" id="rulesVisualDisableAll">Disable Filtered</button>
+                        <select class="field sm rules-visual-action-filter" id="rulesVisualActionFilter">
+                          <option value="">All Actions</option>
+                          <option value="alert">Alert</option>
+                          <option value="drop">Drop</option>
+                          <option value="reject">Reject</option>
+                          <option value="pass">Pass</option>
+                        </select>
+                        <select class="field sm rules-visual-state-filter" id="rulesVisualStateFilter">
+                          <option value="">All States</option>
+                          <option value="enabled">Enabled</option>
+                          <option value="disabled">Disabled</option>
+                        </select>
+                      </div>
+                      <div class="muted text-11" id="rulesVisualCount"></div>
+                    </div>
+                    <div id="rulesVisualGrid" class="rules-visual-grid"></div>
+                  </div>
+
+                  <!-- ── TAB: Rule Builder ── -->
+                  <div class="rulesTabPane active" data-rules-pane="builder">
+                    <div class="rules-builder-layout">
+                      <div class="rules-builder-form-wrap">
+                        <div class="rules-builder-hd">
+                          <span class="rules-builder-icon">⚡</span>
+                          <div>
+                            <div class="rules-builder-title">Suricata Rule Builder</div>
+                            <div class="muted rules-builder-subtitle">Create custom IDS/IPS rules with guided fields —
+                              no syntax required</div>
+                          </div>
+                        </div>
+                        <div class="rules-builder-grid">
+                          <label class="rules-builder-label">Action</label>
+                          <select class="field" id="ruleBuilderAction">
+                            <option value="alert">alert — Generate alert</option>
+                            <option value="drop">drop — Drop packet + alert</option>
+                            <option value="reject">reject — Reject + alert</option>
+                            <option value="pass">pass — Allow packet (whitelist)</option>
+                          </select>
+
+                          <label class="rules-builder-label">Protocol</label>
+                          <select class="field" id="ruleBuilderProto">
+                            <option value="tcp">TCP</option>
+                            <option value="udp">UDP</option>
+                            <option value="icmp">ICMP</option>
+                            <option value="ip">IP (any)</option>
+                            <option value="http">HTTP</option>
+                            <option value="tls">TLS</option>
+                            <option value="dns">DNS</option>
+                            <option value="ssh">SSH</option>
+                            <option value="smtp">SMTP</option>
+                          </select>
+
+                          <label class="rules-builder-label">Source</label>
+                          <div class="rules-builder-endpoints">
+                            <input class="field" id="ruleBuilderSrcAddr" placeholder="$HOME_NET or any" value="any" />
+                            <input class="field" id="ruleBuilderSrcPort" placeholder="any" value="any" />
+                          </div>
+
+                          <label class="rules-builder-label">Direction</label>
+                          <select class="field" id="ruleBuilderDir">
+                            <option value="->">→ Unidirectional (to destination)</option>
+                            <option value="<>">↔ Bidirectional</option>
+                          </select>
+
+                          <label class="rules-builder-label">Destination</label>
+                          <div class="rules-builder-endpoints">
+                            <input class="field" id="ruleBuilderDstAddr" placeholder="$EXTERNAL_NET or any"
+                              value="any" />
+                            <input class="field" id="ruleBuilderDstPort" placeholder="any" value="any" />
+                          </div>
+
+                          <label class="rules-builder-label">Message <span class="required-mark">*</span></label>
+                          <input class="field" id="ruleBuilderMsg" placeholder="Descriptive alert message" />
+
+                          <label class="rules-builder-label">Classtype</label>
+                          <select class="field" id="ruleBuilderClass">
+                            <option value="trojan-activity">trojan-activity</option>
+                            <option value="attempted-admin">attempted-admin</option>
+                            <option value="attempted-user">attempted-user</option>
+                            <option value="bad-unknown">bad-unknown</option>
+                            <option value="web-application-attack">web-application-attack</option>
+                            <option value="web-application-activity">web-application-activity</option>
+                            <option value="policy-violation">policy-violation</option>
+                            <option value="misc-activity">misc-activity</option>
+                            <option value="not-suspicious">not-suspicious</option>
+                            <option value="denial-of-service">denial-of-service</option>
+                            <option value="network-scan">network-scan</option>
+                            <option value="shellcode-detect">shellcode-detect</option>
+                          </select>
+
+                          <label class="rules-builder-label">Content Match</label>
+                          <input class="field" id="ruleBuilderContent"
+                            placeholder="Optional content:'pattern'; or pcre:'/regex/'" />
+
+                          <label class="rules-builder-label">Flow Options</label>
+                          <select class="field" id="ruleBuilderFlow">
+                            <option value="">(none)</option>
+                            <option value="established,to_server">established, to_server</option>
+                            <option value="established,to_client">established, to_client</option>
+                            <option value="to_server">to_server</option>
+                            <option value="to_client">to_client</option>
+                            <option value="stateless">stateless</option>
+                          </select>
+
+                          <label class="rules-builder-label">Extra Options</label>
+                          <input class="field" id="ruleBuilderExtra"
+                            placeholder="threshold:type both, track by_src, count 5, seconds 60;" />
+                        </div>
+                        <div class="rules-builder-preview">
+                          <div class="rules-builder-preview-label">Generated Rule Preview</div>
+                          <pre class="rules-builder-preview-code"
+                            id="ruleBuilderPreview">Select fields above to generate rule…</pre>
+                        </div>
+                        <div class="rules-builder-actions">
+                          <button class="btn primary" id="ruleBuilderAppend">Append to Rules</button>
+                          <button class="btn" id="ruleBuilderCopy">Copy to Clipboard</button>
+                          <button class="btn" id="ruleBuilderReset">Reset Form</button>
+                        </div>
+
+                        <div class="rules-builder-templates">
+                          <div class="muted rules-builder-templates-title">Quick Templates</div>
+                          <div class="rules-template-grid">
+                            <button class="btn sm rules-tpl-btn" data-tpl="dns-tunnel">🔍 DNS Tunneling</button>
+                            <button class="btn sm rules-tpl-btn" data-tpl="lateral-smb">🔀 Lateral Movement
+                              (SMB)</button>
+                            <button class="btn sm rules-tpl-btn" data-tpl="ssh-brute">🔐 SSH Brute Force</button>
+                            <button class="btn sm rules-tpl-btn" data-tpl="c2-beacon">📡 C2 Beacon</button>
+                            <button class="btn sm rules-tpl-btn" data-tpl="data-exfil">📤 Data Exfiltration</button>
+                            <button class="btn sm rules-tpl-btn" data-tpl="port-scan">🌐 Port Scan</button>
+                            <button class="btn sm rules-tpl-btn" data-tpl="web-shell">🐚 Web Shell</button>
+                            <button class="btn sm rules-tpl-btn" data-tpl="crypto-mine">⛏ Crypto Mining</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- ── TAB: Config Files ── -->
+                  <div class="rulesTabPane" data-rules-pane="config">
+                    <div class="rules-config-layout">
+                      <div class="rules-config-sidebar">
+                        <div class="rules-config-sidebar-hd">Configuration Files</div>
+                        <div id="rulesConfigFileList" class="rules-config-file-list"></div>
+                        <div class="miniActions mt-8">
+                          <button class="btn sm" id="rulesConfigReload">⟳ Reload List</button>
+                        </div>
+                      </div>
+                      <div class="rules-config-editor">
+                        <div class="rules-config-editor-hd">
+                          <span id="rulesConfigFileName" class="rules-config-filename">Select a file…</span>
+                          <div class="miniActions">
+                            <button class="btn sm primary" id="rulesConfigSave" disabled>💾 Save</button>
+                            <button class="btn sm" id="rulesConfigRevert" disabled>Revert</button>
+                          </div>
+                        </div>
+                        <textarea id="rulesConfigEditor" class="rules-config-textarea" spellcheck="false"
+                          autocomplete="off" wrap="off"
+                          placeholder="Select a configuration file from the sidebar to begin editing.&#10;&#10;Supported files:&#10;  • rules.yaml — Detection rule definitions&#10;  • parsers.yaml — Parser / decoder definitions&#10;  • config/apis.toml — API integration keys"
+                          readonly></textarea>
+                        <div class="muted text-xs p-12" id="rulesConfigStatus">Select a file to begin editing</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- ── TAB: Suppressions ── -->
+                  <div class="rulesTabPane" data-rules-pane="suppressions">
+                    <div class="rules-supp-toolbar">
+                      <div class="miniActions mini-actions-wrap">
+                        <button class="btn" id="rulesSuppRefresh">⟳ Refresh</button>
+                        <input class="field sm rules-supp-filter" id="rulesSuppFilter" type="text"
+                          placeholder="Filter suppressions…" />
+                      </div>
+                      <div class="rules-supp-add-form">
+                        <input class="field sm rules-supp-key" id="rulesSuppNewKey"
+                          placeholder="sid:XXXXXXX or sig:name" />
+                        <input class="field sm rules-supp-hours" id="rulesSuppNewHours" type="number" value="24" min="1"
+                          max="720" title="Hours" />
+                        <input class="field sm rules-supp-reason" id="rulesSuppNewReason" placeholder="Reason…" />
+                        <button class="btn sm primary" id="rulesSuppAdd">+ Add Suppression</button>
+                      </div>
+                    </div>
+                    <div id="rulesSuppList" class="rules-supp-list">
+                      <div class="muted rules-empty-state">Click Refresh to load suppressions</div>
+                    </div>
+                  </div>
+
+                  <!-- ── TAB: Versions ── -->
+                  <div class="rulesTabPane" data-rules-pane="versions">
+                    <div class="rules-versions-toolbar">
+                      <div class="miniActions mini-actions-wrap">
+                        <button class="btn" id="rulesVersionsRefresh">⟳ Refresh History</button>
+                        <select class="field sm rules-version-select" id="rulesVersionSelect"></select>
+                        <button class="btn sm primary" id="rulesVersionRollback">⏪ Rollback to Selected</button>
+                        <button class="btn sm" id="rulesVersionPreview">Preview Version</button>
+                      </div>
+                    </div>
+                    <div id="rulesVersionTimeline" class="rules-version-timeline">
+                      <div class="muted rules-empty-state">Click Refresh to load version history</div>
+                    </div>
+                  </div>
+
+                  <!-- ── TAB: Sigma Import ── -->
+                  <div class="rulesTabPane" data-rules-pane="sigma">
+                    <div class="sigma-import-layout">
+                      <div class="rules-builder-hd">
+                        <span class="rules-builder-icon">⚡</span>
+                        <div>
+                          <div class="rules-builder-title">Sigma Rule Import</div>
+                          <div class="muted rules-builder-subtitle">Import Sigma detection rules (.yml) — converts to Percepta rule format</div>
+                        </div>
+                      </div>
+                      <div class="sigma-import-body">
+                        <div class="sigma-import-drop" id="sigmaDropZone" style="border:2px dashed var(--surface3,#3a3a3a);border-radius:8px;padding:24px;text-align:center;cursor:pointer;margin-bottom:12px;">
+                          <div style="font-size:32px;margin-bottom:8px;">📂</div>
+                          <div><strong>Drop Sigma YAML files here</strong> or click to browse</div>
+                          <div class="muted text-12" style="margin-top:4px;">Supports .yml / .yaml Sigma rule format</div>
+                          <input type="file" id="sigmaFileInput" accept=".yml,.yaml" multiple style="display:none;" />
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+                          <span class="muted text-12">— OR paste YAML —</span>
+                        </div>
+                        <textarea id="sigmaYamlInput" class="field mono" rows="14" style="width:100%;font-size:11px;resize:vertical;"
+                          placeholder="title: My Detection Rule&#10;description: Detects suspicious activity&#10;status: experimental&#10;logsource:&#10;  category: process_creation&#10;  product: windows&#10;detection:&#10;  selection:&#10;    Image|endswith: '\suspicious.exe'&#10;  condition: selection&#10;level: high&#10;tags:&#10;  - attack.execution"></textarea>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+                          <button class="btn primary" id="sigmaImportBtn">⚡ Import Rule</button>
+                          <button class="btn" id="sigmaClearBtn">Clear</button>
+                          <button class="btn sm" id="sigmaSampleBtn">Load Sample</button>
+                        </div>
+                        <div id="sigmaImportStatus" class="muted text-12" style="margin-top:8px;min-height:20px;"></div>
+                        <div id="sigmaImportPreview" style="margin-top:12px;"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+
+                <div class="settingsSubSection" data-settings-pane="advanced">
+
+                  <!-- LOCAL DASHBOARD RESET ACTIONS -->
+                  <div class="settings-category">
+                    <h3 class="settings-category-title">🗑 Local Dashboard Reset</h3>
+
+                    <div class="settings-section">
+                      <div class="settings-section-body">
+                        <div class="settings-item">
+                          <label>Layout Configuration</label>
+                          <div class="settings-button-group">
+                            <button class="btn sm" id="btnResetOverviewLayout"
+                              data-i18n="settings.resetOverview">Overview</button>
+                            <button class="btn sm" id="btnResetEventsLayout"
+                              data-i18n="settings.resetEventsLayout">Events</button>
+                          </div>
+                        </div>
+
+                        <div class="settings-item">
+                          <label>Data & Labels</label>
+                          <div class="settings-button-group">
+                            <button class="btn sm" id="btnResetDeviceNamesLocal"
+                              data-i18n="settings.resetDeviceNames">Device Labels</button>
+                            <button class="btn sm" id="btnClearEventNotes" data-i18n="settings.clearNotes">Event
+                              Notes</button>
+                          </div>
+                        </div>
+
+                        <div class="settings-item">
+                          <label>Reset All</label>
+                          <button class="btn sm danger" id="btnResetAllLocal" data-i18n="settings.resetAll">⚠ Reset ALL
+                            local UI</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- AGENT MANAGEMENT -->
+                  <div class="settings-category">
+                    <h3 class="settings-category-title">📡 Agent Management</h3>
+
+                    <div class="settings-section">
+                      <div class="settings-section-body">
+                        <div class="settings-item">
+                          <label>Agent Configuration</label>
+                          <button class="btn sm" id="btnResetAgentOrdinals"
+                            data-i18n="settings.resetAgentOrdinals">Reset Numbering</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- AUTHORITY ADMINISTRATION -->
+                  <div class="settings-category">
+                    <h3 class="settings-category-title">🔐 Authority Administration</h3>
+
+                    <!-- RBAC Section -->
+                    <details class="db-admin-section" id="rbacSettingsSection">
+                      <summary class="db-admin-summary">
+                        <span class="sc-card-chevron">&#9656;</span>
+                        <span>Access Control (RBAC)</span>
+                        <span class="settingsModeBadge authority">Authority</span>
+                      </summary>
+                      <div class="db-admin-body">
+                        <div class="settings-admin-toolbar">
+                          <button class="btn sm" id="rbacRefreshBtn">Refresh</button>
+                          <button class="btn sm" id="rbacNewUserBtn">+ User</button>
+                          <button class="btn sm" id="rbacNewRoleBtn">+ Role</button>
+                        </div>
+                        <div class="settings-two-col-grid">
+                          <div>
+                            <h3 class="settings-subheading">Users</h3>
+                            <div id="rbacUsersContent">
+                              <div class="muted">Loading…</div>
+                            </div>
+                          </div>
+                          <div>
+                            <h3 class="settings-subheading">Roles</h3>
+                            <div id="rbacRolesContent">
+                              <div class="muted">Loading…</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </details>
+
+                    <!-- Honeypot Configuration -->
+                    <details class="db-admin-section" id="hpSettingsSection">
+                      <summary class="db-admin-summary">
+                        <span class="sc-card-chevron">&#9656;</span>
+                        <span>Honeypot Configuration</span>
+                        <span class="settingsModeBadge authority">Authority</span>
+                      </summary>
+                      <div class="db-admin-body">
+                        <div class="settings-honeypot-toggle-row">
+                          <label class="settings-honeypot-toggle">
+                            <input type="checkbox" id="hpCfgWebTraps" checked> Web traps enabled
+                          </label>
+                          <label class="settings-honeypot-toggle">
+                            <input type="checkbox" id="hpCfgTcpTraps" checked> TCP port traps enabled
+                          </label>
+                        </div>
+                        <div class="settings-honeypot-ttl-row">
+                          <label class="settings-honeypot-ttl-label">Auto-block TTL (seconds):</label>
+                          <input type="number" class="field sm settings-honeypot-ttl-input" id="hpCfgBlockTtl"
+                            value="300" min="0" max="86400">
+                        </div>
+                        <div class="settings-honeypot-actions">
+                          <button class="btn sm" id="hpCfgSave">Save config</button>
+                          <button class="btn sm" id="hpCfgReload">Reload</button>
+                          <span class="muted settings-status-sm" id="hpSettingsStatus"></span>
+                        </div>
+                        <div class="muted settings-honeypot-help">Web traps serve fake endpoints (wp-admin, phpmyadmin,
+                          .env, etc.) that log scanner activity. TCP traps listen on decoy ports (SSH, FTP, Telnet,
+                          etc.) to catch attackers. Auto-block TTL controls how long IPs are blocked after hitting a
+                          trap (0 = no auto-block).</div>
+                      </div>
+                    </details>
+
+                    <!-- Database Management -->
+                    <details class="db-admin-section" id="dbAdminSection">
+                      <summary class="db-admin-summary">
+                        <span class="sc-card-chevron">&#9656;</span>
+                        <span>Database Management</span>
+                        <span class="settingsModeBadge authority">Authority</span>
+                      </summary>
+                      <div class="db-admin-body">
+                        <div class="db-admin-toolbar">
+                          <button class="btn sm" id="dbRefreshTables">Refresh tables</button>
+                          <span class="muted db-admin-status" id="dbStatusLabel">Not loaded</span>
+                        </div>
+                        <div id="dbTablesGrid" class="db-tables-grid db-tables-grid-spaced"></div>
+
+                        <details class="db-query-section">
+                          <summary class="db-admin-summary db-summary-plain">
+                            <span class="sc-card-chevron">&#9656;</span>
+                            <span>SQL Console</span>
+                          </summary>
+                          <div class="db-query-body">
+                            <textarea class="field db-query-input" id="dbSqlInput" rows="4"
+                              placeholder="SELECT * FROM events LIMIT 10" spellcheck="false"></textarea>
+                            <div class="db-query-actions">
+                              <button class="btn sm" id="dbRunQuery">Run Query (read)</button>
+                              <button class="btn sm danger" id="dbRunExecute">Execute (write)</button>
+                              <span class="muted db-query-status" id="dbQueryStatus"></span>
+                            </div>
+                            <div id="dbQueryResult" class="db-query-result db-query-result-scroll"></div>
+                          </div>
+                        </details>
+                      </div>
+                    </details>
+
+                  </div>
+
+                </div>
+
+                <!-- ═══════ INTEGRATIONS PANE ═══════ -->
+                <div class="settingsSubSection" data-settings-pane="integrations">
+                  <div class="settings-category">
+                    <h3 class="settings-category-title">🔌 API Integration Hub</h3>
+                    <div class="muted" style="margin-bottom:var(--sp-3)">Add any external threat-intel or enrichment API. Enabled integrations auto-enrich events in the pipeline.</div>
+
+                    <!-- Template selector -->
+                    <div class="settings-section">
+                      <div class="settings-section-header">
+                        <span class="settings-section-icon">📦</span>
+                        <h4>Quick-add from Templates</h4>
+                      </div>
+                      <div class="settings-section-body">
+                        <div style="display:flex;gap:var(--sp-2);flex-wrap:wrap;" id="intTplButtons"></div>
+                      </div>
+                    </div>
+
+                    <!-- Integration list -->
+                    <div class="settings-section">
+                      <div class="settings-section-header">
+                        <span class="settings-section-icon">📋</span>
+                        <h4>Configured Integrations</h4>
+                        <div style="margin-left:auto;display:flex;gap:var(--sp-2);">
+                          <button class="btn sm" id="intRefreshBtn">Refresh</button>
+                          <button class="btn sm" id="intAddCustomBtn">+ Custom</button>
+                        </div>
+                      </div>
+                      <div class="settings-section-body">
+                        <div id="intListContainer" style="display:flex;flex-direction:column;gap:var(--sp-2);"></div>
+                      </div>
+                    </div>
+
+                    <!-- Test panel -->
+                    <div class="settings-section">
+                      <div class="settings-section-header">
+                        <span class="settings-section-icon">🧪</span>
+                        <h4>Live Test</h4>
+                      </div>
+                      <div class="settings-section-body">
+                        <div style="display:flex;gap:var(--sp-2);flex-wrap:wrap;align-items:end;">
+                          <div style="flex:1;min-width:140px;">
+                            <label class="muted" style="font-size:11px;">Integration</label>
+                            <select class="field sm" id="intTestSelect" style="width:100%;"></select>
+                          </div>
+                          <div style="flex:0 0 100px;">
+                            <label class="muted" style="font-size:11px;">Trigger</label>
+                            <select class="field sm" id="intTestTrigger" style="width:100%;">
+                              <option value="ip">IP</option>
+                              <option value="hash">Hash</option>
+                              <option value="domain">Domain</option>
+                              <option value="url">URL</option>
+                            </select>
+                          </div>
+                          <div style="flex:2;min-width:180px;">
+                            <label class="muted" style="font-size:11px;">Value</label>
+                            <input type="text" class="field sm" id="intTestValue" placeholder="e.g. 8.8.8.8" style="width:100%;">
+                          </div>
+                          <button class="btn sm" id="intTestBtn" style="white-space:nowrap;">Test</button>
+                        </div>
+                        <pre id="intTestResult" class="db-query-result" style="margin-top:var(--sp-2);max-height:200px;overflow:auto;font-size:11px;display:none;"></pre>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+          <!-- PERCEPTA by OFF-Sec Projections — All Rights Reserved -->
+          <div class="pane-brand-watermark">PERCEPTA by OFF-Sec Projections</div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite">
+    <div class="msg" id="toastMsg"></div>
+    <button class="btn" id="toastClose" data-i18n="btn.close">Close</button>
+  </div>
+
+  <!-- WebSocket reconnection banner -->
+  <div id="wsBanner" class="ws-reconnect-banner" style="display:none;" role="alert" aria-live="assertive">
+    <span class="ws-banner-icon">&#x26A0;</span>
+    <span id="wsBannerMsg">Connection lost — reconnecting…</span>
+  </div>
+
+  <!-- PERCEPTA by OFF-Sec Projections — All Rights Reserved -->
