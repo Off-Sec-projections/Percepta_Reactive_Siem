@@ -1,0 +1,1953 @@
+# Percepta SIEM Detection Rules
+# Each rule defines conditions that trigger alerts when matched against incoming events
+
+rules:
+  - id: failed_login_threshold
+    name: Multiple Failed Login Attempts
+    description: Detects potential brute-force attacks via repeated failed authentication
+    enabled: true
+    severity: high
+    category: authentication
+    conditions:
+      - field: event.category
+        operator: equals
+        value: AUTH
+      - field: event.outcome
+        operator: equals
+        value: FAILURE
+      - field: event.action
+        operator: contains
+        value: logon
+    threshold:
+      count: 3
+      window_seconds: 60
+      group_by: [user.name, host.ip]
+    actions:
+      - type: alert
+        message: "Detected {{count}} failed login attempts from {{user.name}} on {{host.ip}} in {{window_seconds}} seconds"
+
+  - id: privilege_escalation
+    name: Privilege Escalation Detected
+    description: Detects attempts to elevate privileges (sudo, runas, etc)
+    enabled: true
+    severity: critical
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: in
+        values: [sudo, su, runas, doas]
+      - field: event.outcome
+        operator: equals
+        value: SUCCESS
+    actions:
+      - type: alert
+        message: "Privilege escalation via {{process.name}} by {{user.name}} on {{agent.hostname}}"
+
+  - id: suspicious_powershell
+    name: Suspicious PowerShell Execution
+    description: Detects encoded or obfuscated PowerShell commands
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: powershell
+      - field: process.command_line
+        operator: regex
+        value: '(-enc|-encodedcommand|-w hidden|-nop)'
+    actions:
+      - type: alert
+        message: "Suspicious PowerShell command detected: {{process.command_line}}"
+
+  - id: sensitive_file_access
+    name: Access to Sensitive Files
+    description: Monitors access to credential stores and sensitive system files
+    enabled: true
+    severity: medium
+    category: file
+    conditions:
+      - field: event.category
+        operator: equals
+        value: FILE
+      - field: file.path
+        operator: regex
+        value: '(shadow|passwd|SAM|SYSTEM|credentials|id_rsa|\.ssh)'
+      - field: file.operation
+        operator: in
+        values: [READ, MODIFIED]
+    actions:
+      - type: alert
+        message: "Sensitive file {{file.operation}} by {{user.name}}: {{file.path}}"
+
+  - id: network_c2_port
+    name: Connection to Known C2 Ports
+    description: Detects outbound connections to common command-and-control ports
+    enabled: true
+    severity: high
+    category: network
+    conditions:
+      - field: event.category
+        operator: equals
+        value: NETWORK
+      - field: network.direction
+        operator: equals
+        value: OUTBOUND
+      - field: network.dst_port
+        operator: in
+        values: [4444, 5555, 6666, 7777, 8888, 9999]
+    actions:
+      - type: alert
+        message: "Suspicious outbound connection from {{agent.hostname}} to {{network.dst_ip}}:{{network.dst_port}}"
+
+  - id: new_user_created
+    name: New User Account Created
+    description: Alert when a new user account is created on the system
+    enabled: true
+    severity: medium
+    category: authentication
+    conditions:
+      - field: event.category
+        operator: equals
+        value: AUTH
+      - field: event.action
+        operator: contains
+        value: user_add
+    actions:
+      - type: alert
+        message: "New user account created: {{user.name}} by {{metadata.creator}}"
+
+  - id: registry_persistence
+    name: Registry Run Key Modification
+    description: Detects modifications to registry autorun keys (Windows persistence)
+    enabled: true
+    severity: high
+    category: registry
+    conditions:
+      - field: event.category
+        operator: equals
+        value: REGISTRY
+      - field: registry.path
+        operator: regex
+        value: '(Run|RunOnce|RunServices)'
+    actions:
+      - type: alert
+        message: "Registry persistence key modified: {{registry.path}} = {{registry.value}}"
+
+  - id: mass_file_encryption
+    name: Potential Ransomware Activity
+    description: Detects rapid file modifications that may indicate ransomware
+    enabled: true
+    severity: critical
+    category: file
+    conditions:
+      - field: event.category
+        operator: equals
+        value: FILE
+      - field: file.operation
+        operator: equals
+        value: MODIFIED
+    threshold:
+      count: 50
+      window_seconds: 60
+      group_by: [agent.id]
+    actions:
+      - type: alert
+        message: "Potential ransomware: {{count}} file modifications in {{window_seconds}}s on {{agent.hostname}}"
+
+  - id: unauthorized_service_install
+    name: Service Installation
+    description: Alert when new system services are installed
+    enabled: true
+    severity: medium
+    category: system
+    conditions:
+      - field: event.category
+        operator: equals
+        value: SYSTEM
+      - field: event.action
+        operator: contains
+        value: service_install
+    actions:
+      - type: alert
+        message: "New service installed on {{agent.hostname}}: {{metadata.service_name}}"
+
+  - id: suspicious_network_scan
+    name: Port Scanning Activity
+    description: Detects rapid connections to multiple ports (potential reconnaissance)
+    enabled: true
+    severity: medium
+    category: network
+    conditions:
+      - field: event.category
+        operator: equals
+        value: NETWORK
+      - field: network.direction
+        operator: equals
+        value: OUTBOUND
+    threshold:
+      count: 20
+      window_seconds: 30
+      group_by: [agent.id, network.src_ip]
+    actions:
+      - type: alert
+        message: "Port scan detected from {{network.src_ip}}: {{count}} connections in {{window_seconds}}s"
+
+  # =============================
+  # Authentication (Windows/Linux)
+  # =============================
+
+  - id: win_failed_logon_4625
+    name: Windows Failed Logon (4625)
+    description: Detect failed logon events by Windows event_id (Security-Auditing)
+    enabled: true
+    severity: medium
+    category: authentication
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: Security-Auditing
+      - field: event.event_id
+        operator: equals
+        value: "4625"
+    actions:
+      - type: alert
+        message: "Windows failed logon detected for {{user.name}} on {{agent.hostname}} ({{host.ip}})"
+
+  - id: win_success_logon_4624_admin
+    name: Windows Successful Logon With Elevated Privileges (4624 + 4672 pattern)
+    description: Heuristic for privileged logons when event.summary/provider indicates special privileges
+    enabled: false
+    severity: high
+    category: authentication
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: Security-Auditing
+      - field: event.event_id
+        operator: equals
+        value: "4672"
+    actions:
+      - type: alert
+        message: "Special privileges assigned to new logon: {{user.name}} on {{agent.hostname}}"
+
+  - id: win_new_user_4720
+    name: Windows New User Created (4720)
+    description: Detect creation of new user accounts (high impact administrative change)
+    enabled: true
+    severity: high
+    category: authentication
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: Security-Auditing
+      - field: event.event_id
+        operator: equals
+        value: "4720"
+    actions:
+      - type: alert
+        message: "New local/domain user created: {{user.name}} on {{agent.hostname}}"
+
+  - id: win_user_enabled_4722
+    name: Windows Account Enabled (4722)
+    description: Detect account being enabled
+    enabled: true
+    severity: medium
+    category: authentication
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: Security-Auditing
+      - field: event.event_id
+        operator: equals
+        value: "4722"
+    actions:
+      - type: alert
+        message: "Account enabled: {{user.name}} on {{agent.hostname}}"
+
+  - id: win_user_disabled_4725
+    name: Windows Account Disabled (4725)
+    description: Detect account being disabled (could be attacker activity)
+    enabled: true
+    severity: medium
+    category: authentication
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: Security-Auditing
+      - field: event.event_id
+        operator: equals
+        value: "4725"
+    actions:
+      - type: alert
+        message: "Account disabled: {{user.name}} on {{agent.hostname}}"
+
+  - id: win_password_reset_4724
+    name: Windows Password Reset Attempt (4724)
+    description: Detect password reset attempts (often used for takeover)
+    enabled: true
+    severity: high
+    category: authentication
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: Security-Auditing
+      - field: event.event_id
+        operator: equals
+        value: "4724"
+    actions:
+      - type: alert
+        message: "Password reset attempt involving {{user.name}} on {{agent.hostname}}"
+
+  - id: win_password_change_4723
+    name: Windows Password Change Attempt (4723)
+    description: Detect password change attempts
+    enabled: false
+    severity: medium
+    category: authentication
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: Security-Auditing
+      - field: event.event_id
+        operator: equals
+        value: "4723"
+    actions:
+      - type: alert
+        message: "Password change attempt involving {{user.name}} on {{agent.hostname}}"
+
+  - id: win_group_member_added_4728_4732_4756
+    name: Windows Group Membership Change (4728/4732/4756)
+    description: Detect user added to security-enabled group (possible privilege escalation)
+    enabled: true
+    severity: high
+    category: authentication
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: Security-Auditing
+      - field: event.event_id
+        operator: in
+        values: ["4728", "4732", "4756"]
+    actions:
+      - type: alert
+        message: "Group membership changed for {{user.name}} on {{agent.hostname}}"
+
+  - id: linux_sshd_failed_password
+    name: Linux SSH Failed Password
+    description: Detect SSH failed password attempts from raw log text
+    enabled: true
+    severity: medium
+    category: authentication
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: sshd
+      - field: event.original_message
+        operator: regex
+        value: '(?i)Failed password|Invalid user'
+    actions:
+      - type: alert
+        message: "SSH authentication failure for {{user.name}} on {{agent.hostname}} from {{host.ip}}"
+
+  - id: linux_sudo_auth_failure
+    name: Linux Sudo Authentication Failure
+    description: Detect sudo failures (wrong password / not in sudoers)
+    enabled: true
+    severity: medium
+    category: authentication
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: sudo
+      - field: event.original_message
+        operator: regex
+        value: '(?i)authentication failure|incorrect password|not in the sudoers file'
+    actions:
+      - type: alert
+        message: "Sudo authentication failure for {{user.name}} on {{agent.hostname}}"
+
+  - id: brute_force_linux_ssh_threshold
+    name: Brute Force SSH (Threshold)
+    description: Multiple SSH failures in short window
+    enabled: true
+    severity: high
+    category: authentication
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: sshd
+      - field: event.original_message
+        operator: regex
+        value: '(?i)Failed password|Invalid user'
+    threshold:
+      count: 5
+      window_seconds: 60
+      group_by: [host.ip, user.name]
+    actions:
+      - type: alert
+        message: "Detected {{count}} SSH failures for {{user.name}} from {{host.ip}} in {{window_seconds}} seconds"
+
+  # =============================
+  # Process / LOLBins / Execution
+  # =============================
+
+  - id: process_cmd_powershell_encoded
+    name: PowerShell Encoded Command
+    description: Detect PowerShell encoded command flags (-enc/-EncodedCommand)
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: powershell
+      - field: process.command_line
+        operator: regex
+        value: '(?i)(-enc\s|-encodedcommand\s)'
+    actions:
+      - type: alert
+        message: "PowerShell encoded command: {{process.command_line}}"
+
+  - id: process_cmd_powershell_hidden
+    name: PowerShell Hidden Window
+    description: Detect PowerShell with hidden window and no profile
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: powershell
+      - field: process.command_line
+        operator: regex
+        value: '(?i)(-w\s+hidden|-windowstyle\s+hidden).*?(-nop|-noprofile)'
+    actions:
+      - type: alert
+        message: "Suspicious PowerShell flags: {{process.command_line}}"
+
+  - id: process_cmd_powershell_downloadstring
+    name: PowerShell DownloadString / IEX
+    description: Detect common PowerShell download + execute patterns
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: powershell
+      - field: process.command_line
+        operator: regex
+        value: '(?i)(DownloadString\(|Invoke-WebRequest|iwr\s|New-Object\s+Net\.WebClient|IEX\s|Invoke-Expression)'
+    actions:
+      - type: alert
+        message: "PowerShell download/exec pattern: {{process.command_line}}"
+
+  - id: process_cmd_powershell_amsi_bypass
+    name: PowerShell AMSI Bypass Indicators
+    description: Detect common AMSI bypass strings (heuristic)
+    enabled: false
+    severity: critical
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: powershell
+      - field: process.command_line
+        operator: regex
+        value: '(?i)AmsiUtils|amsi\.dll|Bypass\s+AMSI|amsiInitFailed'
+    actions:
+      - type: alert
+        message: "Potential AMSI bypass attempt: {{process.command_line}}"
+
+  - id: lolbin_certutil_urlcache
+    name: LOLBin Certutil Download
+    description: Detect certutil usage to download a payload
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: certutil
+      - field: process.command_line
+        operator: regex
+        value: '(?i)(-urlcache\s+-split\s+-f\s+https?://|\shttps?://)'
+    actions:
+      - type: alert
+        message: "Certutil download pattern: {{process.command_line}}"
+
+  - id: lolbin_certutil_decode
+    name: LOLBin Certutil Decode
+    description: Detect certutil decode (often used to unpack malware)
+    enabled: true
+    severity: medium
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: certutil
+      - field: process.command_line
+        operator: regex
+        value: '(?i)(-decode\s|-decodehex\s)'
+    actions:
+      - type: alert
+        message: "Certutil decode pattern: {{process.command_line}}"
+
+  - id: lolbin_bitsadmin_transfer
+    name: LOLBin Bitsadmin Transfer
+    description: Detect bitsadmin used for file transfer
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: bitsadmin
+      - field: process.command_line
+        operator: regex
+        value: '(?i)(/transfer\s|/addfile\s|http://|https://)'
+    actions:
+      - type: alert
+        message: "Bitsadmin transfer pattern: {{process.command_line}}"
+
+  - id: lolbin_mshta_remote
+    name: LOLBin MSHTA Remote Execution
+    description: Detect mshta fetching remote content
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: mshta
+      - field: process.command_line
+        operator: regex
+        value: '(?i)https?://|javascript:|vbscript:'
+    actions:
+      - type: alert
+        message: "MSHTA remote/scripting pattern: {{process.command_line}}"
+
+  - id: lolbin_rundll32_script
+    name: LOLBin Rundll32 Script/URL
+    description: Detect rundll32 used with script engines or URLs
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: rundll32
+      - field: process.command_line
+        operator: regex
+        value: '(?i)javascript:|http://|https://|shell32\.dll,ShellExec_RunDLL'
+    actions:
+      - type: alert
+        message: "Rundll32 suspicious invocation: {{process.command_line}}"
+
+  - id: lolbin_regsvr32_sct
+    name: LOLBin Regsvr32 SCT Execution
+    description: Detect regsvr32 executing scriptlet (.sct)
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: regsvr32
+      - field: process.command_line
+        operator: regex
+        value: '(?i)(scrobj\.dll|\.sct\b|/i:.*https?://)'
+    actions:
+      - type: alert
+        message: "Regsvr32 scriptlet pattern: {{process.command_line}}"
+
+  - id: lolbin_wmic_process_create
+    name: LOLBin WMIC Process Creation
+    description: Detect WMIC used to spawn processes (often lateral/remote admin)
+    enabled: true
+    severity: medium
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: wmic
+      - field: process.command_line
+        operator: regex
+        value: '(?i)process\s+call\s+create|/node:|\\\\'
+    actions:
+      - type: alert
+        message: "WMIC suspicious usage: {{process.command_line}}"
+
+  - id: lolbin_schtasks_create
+    name: Scheduled Task Creation (schtasks)
+    description: Detect task creation commands
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: schtasks
+      - field: process.command_line
+        operator: regex
+        value: '(?i)/create\b|/change\b'
+    actions:
+      - type: alert
+        message: "Scheduled task change: {{process.command_line}}"
+
+  - id: lolbin_sc_service_create
+    name: Service Creation (sc.exe)
+    description: Detect service creation/config changes via sc.exe
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: sc
+      - field: process.command_line
+        operator: regex
+        value: '(?i)\screate\s|\sconfig\s'
+    actions:
+      - type: alert
+        message: "Service create/config command: {{process.command_line}}"
+
+  - id: defense_evasion_clear_event_logs
+    name: Event Log Clearing
+    description: Detect attempts to clear Windows event logs
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: in
+        values: ["wevtutil", "powershell", "cmd"]
+      - field: process.command_line
+        operator: regex
+        value: '(?i)wevtutil\s+cl\s|Clear-EventLog\b|Remove-EventLog\b'
+    actions:
+      - type: alert
+        message: "Event log clearing attempt: {{process.command_line}}"
+
+  - id: defense_evasion_disable_defender
+    name: Disable Windows Defender Indicators
+    description: Detect commands that disable Defender / realtime monitoring
+    enabled: true
+    severity: critical
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.command_line
+        operator: regex
+        value: '(?i)Set-MpPreference\s+-DisableRealtimeMonitoring\s+\$?true|DisableRealtimeMonitoring|Add-MpPreference\s+-ExclusionPath|Add-MpPreference\s+-ExclusionProcess'
+    actions:
+      - type: alert
+        message: "Defender tampering command: {{process.command_line}}"
+
+  - id: defense_evasion_vssadmin_delete
+    name: Delete Shadow Copies (vssadmin)
+    description: Detect shadow copy deletion (ransomware precursor)
+    enabled: true
+    severity: critical
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: vssadmin
+      - field: process.command_line
+        operator: regex
+        value: '(?i)delete\s+shadows\b|resize\s+shadowstorage\b'
+    actions:
+      - type: alert
+        message: "Shadow copy deletion command: {{process.command_line}}"
+
+  - id: defense_evasion_bcdedit_recovery_disable
+    name: Disable Recovery via BCDEdit
+    description: Detect attempts to disable recovery / safeboot (ransomware behavior)
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: bcdedit
+      - field: process.command_line
+        operator: regex
+        value: '(?i)recoveryenabled\s+no|bootstatuspolicy\s+ignoreallfailures'
+    actions:
+      - type: alert
+        message: "BCDEdit recovery tampering: {{process.command_line}}"
+
+  - id: linux_reverse_shell_patterns
+    name: Linux Reverse Shell Pattern
+    description: Detect common reverse shell command patterns
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.command_line
+        operator: regex
+        value: '(?i)(/dev/tcp/|bash\s+-i\b|nc\s+-e\b|ncat\s+-e\b|socat\s+TCP|python\s+-c\b.*socket)'
+    actions:
+      - type: alert
+        message: "Reverse shell pattern: {{process.command_line}}"
+
+  - id: linux_curl_pipe_sh
+    name: Curl/Wget Piped to Shell
+    description: Detect remote script execution via curl/wget piped to sh/bash
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.command_line
+        operator: regex
+        value: '(?i)(curl\s+[^|]+\|\s*(sh|bash)\b|wget\s+[^|]+\|\s*(sh|bash)\b)'
+    actions:
+      - type: alert
+        message: "Remote script execution pattern: {{process.command_line}}"
+
+  - id: linux_chmod_tmp_exec
+    name: Executable Created in /tmp
+    description: Detect chmod making files executable in /tmp or /var/tmp
+    enabled: true
+    severity: medium
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.command_line
+        operator: regex
+        value: '(?i)chmod\s+\+x\s+(/tmp/|/var/tmp/)'
+    actions:
+      - type: alert
+        message: "Executable permission set in temp dir: {{process.command_line}}"
+
+  - id: credential_dumping_mimikatz_keywords
+    name: Credential Dumping Keywords
+    description: Detect well-known credential dumping keywords in command lines
+    enabled: true
+    severity: critical
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.command_line
+        operator: regex
+        value: '(?i)mimikatz|sekurlsa::logonpasswords|lsadump::sam|procdump\s+.*lsass|comsvcs\.dll,\s*MiniDump'
+    actions:
+      - type: alert
+        message: "Credential dumping indicator: {{process.command_line}}"
+
+  - id: discovery_net_user_group
+    name: Discovery via net user / net group
+    description: Detect account/group discovery commands
+    enabled: false
+    severity: medium
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.command_line
+        operator: regex
+        value: '(?i)\bnet\s+user\b|\bnet\s+group\b|\bnet\s+localgroup\b'
+    actions:
+      - type: alert
+        message: "Account/group discovery: {{process.command_line}}"
+
+  - id: discovery_whoami_ipconfig_systeminfo
+    name: Discovery via whoami/ipconfig/systeminfo
+    description: Detect basic host discovery commands (noisy)
+    enabled: false
+    severity: low
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: in
+        values: ["whoami", "ipconfig", "systeminfo", "hostname"]
+    actions:
+      - type: alert
+        message: "Host discovery command executed: {{process.name}} on {{agent.hostname}}"
+
+  - id: lateral_movement_psexec_indicators
+    name: PsExec/Service-based Lateral Movement Indicators
+    description: Detect common PsExec strings or service-based remote execution artifacts
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.command_line
+        operator: regex
+        value: '(?i)\\\\.*\\ADMIN\$|\\\\.*\\C\$|psexec(\.exe)?\b|\\\\.*\\IPC\$'
+    actions:
+      - type: alert
+        message: "Potential lateral movement artifact: {{process.command_line}}"
+
+  # =============================
+  # Registry Persistence (Windows)
+  # =============================
+
+  - id: registry_runkeys_modified
+    name: Registry Run Key Modified
+    description: Detect modifications to Run/RunOnce keys
+    enabled: true
+    severity: high
+    category: registry
+    conditions:
+      - field: event.category
+        operator: equals
+        value: REGISTRY
+      - field: registry.path
+        operator: regex
+        value: '(?i)\\Software\\Microsoft\\Windows\\CurrentVersion\\Run(Once)?\\|\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer\\Run'
+    actions:
+      - type: alert
+        message: "Registry autorun key modified: {{process.name}} on {{agent.hostname}}"
+
+  - id: registry_winlogon_shell_userinit
+    name: Winlogon Shell/Userinit Modified
+    description: Detect changes to Winlogon Shell/Userinit (persistence)
+    enabled: true
+    severity: critical
+    category: registry
+    conditions:
+      - field: event.category
+        operator: equals
+        value: REGISTRY
+      - field: registry.path
+        operator: regex
+        value: '(?i)\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\\(Shell|Userinit)'
+    actions:
+      - type: alert
+        message: "Winlogon persistence key modified on {{agent.hostname}}"
+
+  - id: registry_services_imagepath
+    name: Service ImagePath Modified
+    description: Detect service ImagePath modifications
+    enabled: true
+    severity: high
+    category: registry
+    conditions:
+      - field: event.category
+        operator: equals
+        value: REGISTRY
+      - field: registry.path
+        operator: regex
+        value: '(?i)\\SYSTEM\\CurrentControlSet\\Services\\.*\\ImagePath'
+    actions:
+      - type: alert
+        message: "Service ImagePath modified on {{agent.hostname}}"
+
+  - id: registry_ifeo_debugger
+    name: IFEO Debugger Persistence
+    description: Detect Image File Execution Options debugger persistence
+    enabled: true
+    severity: critical
+    category: registry
+    conditions:
+      - field: event.category
+        operator: equals
+        value: REGISTRY
+      - field: registry.path
+        operator: regex
+        value: '(?i)\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\.*\\Debugger'
+    actions:
+      - type: alert
+        message: "IFEO debugger key modified on {{agent.hostname}}"
+
+  # =============================
+  # File System (Credentials / Persistence / Ransomware)
+  # =============================
+
+  - id: file_authorized_keys_modified
+    name: SSH authorized_keys Modified
+    description: Detect modification of SSH authorized_keys (persistence)
+    enabled: true
+    severity: high
+    category: file
+    conditions:
+      - field: event.category
+        operator: equals
+        value: FILE
+      - field: file.path
+        operator: regex
+        value: '(?i)\\.ssh/authorized_keys$|/root/\\.ssh/authorized_keys$'
+      - field: file.operation
+        operator: in
+        values: ["CREATED", "MODIFIED"]
+    actions:
+      - type: alert
+        message: "authorized_keys modified by {{user.name}} on {{agent.hostname}}: {{file.path}}"
+
+  - id: file_crontab_modified
+    name: Cron Persistence File Modified
+    description: Detect modifications to cron config
+    enabled: true
+    severity: high
+    category: file
+    conditions:
+      - field: event.category
+        operator: equals
+        value: FILE
+      - field: file.path
+        operator: regex
+        value: '(?i)/etc/crontab$|/etc/cron\\.(d|daily|hourly|weekly|monthly)/|/var/spool/cron/'
+      - field: file.operation
+        operator: in
+        values: ["CREATED", "MODIFIED"]
+    actions:
+      - type: alert
+        message: "Cron persistence file modified on {{agent.hostname}}: {{file.path}}"
+
+  - id: file_sudoers_modified
+    name: Sudoers File Modified
+    description: Detect modifications to sudoers configuration
+    enabled: true
+    severity: critical
+    category: file
+    conditions:
+      - field: event.category
+        operator: equals
+        value: FILE
+      - field: file.path
+        operator: regex
+        value: '(?i)/etc/sudoers$|/etc/sudoers\\.d/'
+      - field: file.operation
+        operator: in
+        values: ["MODIFIED", "CREATED"]
+    actions:
+      - type: alert
+        message: "Sudoers modified on {{agent.hostname}}: {{file.path}}"
+
+  - id: file_windows_sam_system_access
+    name: Windows SAM/SYSTEM File Access
+    description: Detect access to critical Windows hive files
+    enabled: true
+    severity: critical
+    category: file
+    conditions:
+      - field: event.category
+        operator: equals
+        value: FILE
+      - field: file.path
+        operator: regex
+        value: '(?i)\\Windows\\System32\\config\\(SAM|SYSTEM|SECURITY)$'
+      - field: file.operation
+        operator: in
+        values: ["READ", "MODIFIED"]
+    actions:
+      - type: alert
+        message: "Sensitive hive accessed on {{agent.hostname}}: {{file.path}}"
+
+  - id: file_shadow_or_passwd_access
+    name: Linux /etc/shadow or /etc/passwd Access
+    description: Detect access to Linux credential files
+    enabled: true
+    severity: high
+    category: file
+    conditions:
+      - field: event.category
+        operator: equals
+        value: FILE
+      - field: file.path
+        operator: regex
+        value: '(?i)^/etc/(shadow|passwd)$'
+      - field: file.operation
+        operator: in
+        values: ["READ", "MODIFIED"]
+    actions:
+      - type: alert
+        message: "Sensitive Linux file accessed on {{agent.hostname}}: {{file.path}}"
+
+  - id: ransomware_mass_modifications_low
+    name: High File Modification Rate (Ransomware Heuristic)
+    description: Detect high volume file modifications per host
+    enabled: true
+    severity: high
+    category: file
+    conditions:
+      - field: event.category
+        operator: equals
+        value: FILE
+      - field: file.operation
+        operator: equals
+        value: MODIFIED
+    threshold:
+      count: 100
+      window_seconds: 60
+      group_by: [agent.id]
+    actions:
+      - type: alert
+        message: "High file modification rate on {{agent.hostname}} (possible ransomware)"
+
+  - id: ransomware_known_extensions
+    name: Suspicious Encrypted File Extension
+    description: Detect creation/modification of common ransomware extensions
+    enabled: false
+    severity: high
+    category: file
+    conditions:
+      - field: event.category
+        operator: equals
+        value: FILE
+      - field: file.path
+        operator: regex
+        value: '(?i)\\.(locked|encrypt|encrypted|crypt|cry|enc|aes|onion|pay|readme)$'
+      - field: file.operation
+        operator: in
+        values: ["CREATED", "MODIFIED"]
+    actions:
+      - type: alert
+        message: "Possible ransomware extension activity on {{agent.hostname}}: {{file.path}}"
+
+  # =============================
+  # Network (C2 / Exfil / Suspicious Destinations)
+  # =============================
+
+  - id: network_suspicious_ports_extended
+    name: Outbound to Suspicious Ports (Extended)
+    description: Detect outbound connections to common C2/remote admin ports
+    enabled: true
+    severity: medium
+    category: network
+    conditions:
+      - field: event.category
+        operator: equals
+        value: NETWORK
+      - field: network.direction
+        operator: equals
+        value: OUTBOUND
+      - field: network.dst_port
+        operator: in
+        values: ["22", "23", "3389", "4444", "5555", "5900", "5985", "5986", "8080", "8443", "9001", "9050"]
+    actions:
+      - type: alert
+        message: "Outbound connection to suspicious port: {{network.dst_ip}}:{{network.dst_port}} from {{agent.hostname}}"
+
+  - id: network_large_egress_threshold
+    name: Large Outbound Data Volume (Threshold)
+    description: Detect large outbound bytes over short window (exfil heuristic)
+    enabled: false
+    severity: high
+    category: network
+    conditions:
+      - field: event.category
+        operator: equals
+        value: NETWORK
+      - field: network.direction
+        operator: equals
+        value: OUTBOUND
+    threshold:
+      count: 20
+      window_seconds: 60
+      group_by: [agent.id]
+    actions:
+      - type: alert
+        message: "Sustained outbound traffic from {{agent.hostname}} to {{network.dst_ip}}"
+
+  - id: network_tls_sni_suspicious
+    name: Suspicious TLS SNI (Heuristic)
+    description: Detect suspicious TLS SNI patterns (dynamic DNS / paste sites / short domains)
+    enabled: false
+    severity: medium
+    category: network
+    conditions:
+      - field: event.category
+        operator: equals
+        value: NETWORK
+      - field: network.tls_sni
+        operator: regex
+        value: '(?i)(duckdns\\.org|no-ip\\.com|ddns\\.|pastebin\\.com|raw\\.githubusercontent\\.com|ngrok\\.io)$'
+    actions:
+      - type: alert
+        message: "Suspicious TLS SNI observed from {{agent.hostname}}: {{network.dst_ip}}:{{network.dst_port}}"
+
+  - id: network_ja3_known_suspicious
+    name: Suspicious JA3 Fingerprint (Heuristic)
+    description: Match known suspicious JA3/JA3S values (populate values as intel becomes available)
+    enabled: false
+    severity: high
+    category: network
+    conditions:
+      - field: event.category
+        operator: equals
+        value: NETWORK
+      - field: network.ja3
+        operator: in
+        values: ["" ]
+    actions:
+      - type: alert
+        message: "Suspicious JA3 observed from {{agent.hostname}} to {{network.dst_ip}}"
+
+  # =============================
+  # Tags-driven (generic)
+  # =============================
+
+  - id: tags_malware_indicator
+    name: Malware Tag Indicator
+    description: Trigger when upstream tags indicate malware (requires agent/parser tagging)
+    enabled: false
+    severity: critical
+    category: other
+    conditions:
+      - field: tags
+        operator: contains
+        value: malware
+    actions:
+      - type: alert
+        message: "Tagged malware indicator on {{agent.hostname}}"
+
+  # =====================================
+  # Bulk LOLBin/Tooling Coverage (Enabled)
+  # =====================================
+
+  - id: tool_nltest_domain_discovery
+    name: Domain Discovery via nltest
+    description: Detect nltest discovery commands
+    enabled: false
+    severity: low
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: nltest
+    actions:
+      - type: alert
+        message: "nltest executed on {{agent.hostname}} by {{user.name}}"
+
+  - id: tool_netsh_firewall_changes
+    name: Firewall Changes via netsh
+    description: Detect netsh firewall rule changes
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: netsh
+      - field: process.command_line
+        operator: regex
+        value: '(?i)advfirewall\s+set\s+allprofiles\s+state\s+off|firewall\s+set\s+opmode\s+disable|add\s+rule'
+    actions:
+      - type: alert
+        message: "Firewall tampering: {{process.command_line}}"
+
+  - id: tool_reg_add_runkey
+    name: Registry Autorun via reg.exe
+    description: Detect reg.exe adding autorun keys
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: reg
+      - field: process.command_line
+        operator: regex
+        value: '(?i)\\badd\\b.*\\\
+              \\CurrentVersion\\\\Run(Once)?\\\
+              '
+    actions:
+      - type: alert
+        message: "reg.exe autorun modification: {{process.command_line}}"
+
+  # Note: The rule engine supports only equals/contains/in/regex operators and
+  # a curated set of fields. This pack intentionally focuses on high-signal
+  # detections mapped to fields available in Event.
+
+  # =====================================
+  # SOC High-Signal Pack (Windows/Linux)
+  # =====================================
+
+  - id: win_audit_log_cleared_1102
+    name: Windows Audit Log Cleared (1102)
+    description: Detect Security log cleared (often anti-forensics)
+    enabled: true
+    severity: critical
+    category: system
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: Security-Auditing
+      - field: event.event_id
+        operator: equals
+        value: "1102"
+    actions:
+      - type: alert
+        message: "Security log cleared on {{agent.hostname}} by {{user.name}}"
+
+  - id: win_special_privileges_4672
+    name: Special Privileges Assigned (4672)
+    description: Detect privileged logon token assignment
+    enabled: true
+    severity: high
+    category: authentication
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: Security-Auditing
+      - field: event.event_id
+        operator: equals
+        value: "4672"
+    actions:
+      - type: alert
+        message: "Privileged logon (4672) on {{agent.hostname}} user={{user.name}}"
+
+  - id: win_account_lockout_4740
+    name: Account Lockout (4740)
+    description: Detect repeated failures leading to lockout
+    enabled: true
+    severity: medium
+    category: authentication
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: Security-Auditing
+      - field: event.event_id
+        operator: equals
+        value: "4740"
+    actions:
+      - type: alert
+        message: "Account lockout (4740) on {{agent.hostname}} user={{user.name}}"
+
+  - id: win_successful_logon_4624
+    name: Windows Successful Logon (4624)
+    description: Successful logon events (useful for pivoting)
+    enabled: false
+    severity: low
+    category: authentication
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: Security-Auditing
+      - field: event.event_id
+        operator: equals
+        value: "4624"
+    actions:
+      - type: alert
+        message: "Successful logon (4624) on {{agent.hostname}} user={{user.name}}"
+
+  - id: win_schtask_created_4698
+    name: Scheduled Task Created (4698)
+    description: Scheduled task creation can indicate persistence
+    enabled: true
+    severity: high
+    category: system
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: Security-Auditing
+      - field: event.event_id
+        operator: equals
+        value: "4698"
+    actions:
+      - type: alert
+        message: "Scheduled task created (4698) on {{agent.hostname}} user={{user.name}}"
+
+  - id: win_service_installed_4697
+    name: Service Installed (4697)
+    description: New service installation (persistence)
+    enabled: true
+    severity: high
+    category: system
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: Security-Auditing
+      - field: event.event_id
+        operator: equals
+        value: "4697"
+    actions:
+      - type: alert
+        message: "Service installed (4697) on {{agent.hostname}} user={{user.name}}"
+
+  - id: win_scm_service_install_7045
+    name: Service Installed (7045)
+    description: Service Control Manager service install
+    enabled: true
+    severity: high
+    category: system
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: Service Control Manager
+      - field: event.event_id
+        operator: equals
+        value: "7045"
+    actions:
+      - type: alert
+        message: "Service installed (7045) on {{agent.hostname}}"
+
+  - id: win_audit_policy_change_4719
+    name: Audit Policy Changed (4719)
+    description: Audit policy changes may indicate defense evasion
+    enabled: true
+    severity: high
+    category: system
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: Security-Auditing
+      - field: event.event_id
+        operator: equals
+        value: "4719"
+    actions:
+      - type: alert
+        message: "Audit policy changed (4719) on {{agent.hostname}} user={{user.name}}"
+
+  - id: win_group_membership_change_4728_4732
+    name: Group Membership Changed (4728/4732)
+    description: User added to security-enabled groups (potential privilege escalation)
+    enabled: true
+    severity: high
+    category: authentication
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: Security-Auditing
+      - field: event.event_id
+        operator: in
+        values: ["4728", "4732", "4756"]
+    actions:
+      - type: alert
+        message: "Group membership changed ({{event.event_id}}) on {{agent.hostname}} actor={{user.name}}"
+
+  - id: win_user_created_4720
+    name: User Account Created (4720)
+    description: Local/AD user created
+    enabled: true
+    severity: medium
+    category: authentication
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: Security-Auditing
+      - field: event.event_id
+        operator: equals
+        value: "4720"
+    actions:
+      - type: alert
+        message: "User account created (4720) on {{agent.hostname}} actor={{user.name}}"
+
+  - id: win_user_deleted_4726
+    name: User Account Deleted (4726)
+    description: User deletion can be destructive or cover tracks
+    enabled: true
+    severity: high
+    category: authentication
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: Security-Auditing
+      - field: event.event_id
+        operator: equals
+        value: "4726"
+    actions:
+      - type: alert
+        message: "User account deleted (4726) on {{agent.hostname}} actor={{user.name}}"
+
+  - id: win_kerberos_preauth_fail_4771_threshold
+    name: Kerberos Pre-auth Failures Spike (4771)
+    description: Detect likely password spray / brute-force on Kerberos
+    enabled: true
+    severity: high
+    category: authentication
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: Security-Auditing
+      - field: event.event_id
+        operator: equals
+        value: "4771"
+    threshold:
+      count: 5
+      window_seconds: 120
+      group_by: [user.name, host.ip]
+    actions:
+      - type: alert
+        message: "Kerberos pre-auth failures: {{count}} in {{window_seconds}}s user={{user.name}} ip={{host.ip}}"
+
+  - id: win_ntlm_auth_fail_4776_threshold
+    name: NTLM Authentication Failures Spike (4776)
+    description: Detect repeated NTLM authentication failures
+    enabled: true
+    severity: medium
+    category: authentication
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: Security-Auditing
+      - field: event.event_id
+        operator: equals
+        value: "4776"
+    threshold:
+      count: 8
+      window_seconds: 120
+      group_by: [user.name, host.ip]
+    actions:
+      - type: alert
+        message: "NTLM failures: {{count}} in {{window_seconds}}s user={{user.name}} ip={{host.ip}}"
+
+  - id: win_powershell_scriptblock_4104_suspicious
+    name: PowerShell ScriptBlock Suspicious (4104)
+    description: ScriptBlock logging with common malicious indicators
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: PowerShell
+      - field: event.event_id
+        operator: equals
+        value: "4104"
+      - field: event.original_message
+        operator: regex
+        value: '(?i)downloadstring\(|invoke-webrequest|iwr\s+http|invoke-expression|iex\b|frombase64string\(|-enc\b'
+    actions:
+      - type: alert
+        message: "Suspicious PowerShell ScriptBlock (4104) on {{agent.hostname}} user={{user.name}}"
+
+  - id: win_sysmon_proc_create_1_suspicious
+    name: Sysmon Process Create Suspicious (1)
+    description: Sysmon process creation with common LOLBins
+    enabled: true
+    severity: medium
+    category: process
+    conditions:
+      - field: event.provider
+        operator: contains
+        value: Sysmon
+      - field: event.event_id
+        operator: equals
+        value: "1"
+      - field: process.name
+        operator: regex
+        value: '(?i)\\(powershell|pwsh|cmd|wscript|cscript|mshta|rundll32|regsvr32|certutil|bitsadmin|wmic)\\.exe$'
+    actions:
+      - type: alert
+        message: "Sysmon suspicious process ({{process.name}}) on {{agent.hostname}} user={{user.name}}"
+
+  - id: lolbin_certutil_decode
+    name: certutil Decode/Download Usage
+    description: certutil is frequently abused for download/decoding
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: certutil
+      - field: process.command_line
+        operator: regex
+        value: '(?i)\b(decode|decodehex|urlcache|verifyctl)\b'
+    actions:
+      - type: alert
+        message: "certutil suspicious usage on {{agent.hostname}}: {{process.command_line}}"
+
+  - id: lolbin_bitsadmin_transfer
+    name: bitsadmin Transfer
+    description: bitsadmin download/transfer commands
+    enabled: true
+    severity: medium
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: bitsadmin
+      - field: process.command_line
+        operator: regex
+        value: '(?i)\btransfer\b|\baddfile\b|\bsetnotifycmdline\b'
+    actions:
+      - type: alert
+        message: "bitsadmin usage on {{agent.hostname}}: {{process.command_line}}"
+
+  - id: lolbin_mshta_remote
+    name: mshta Remote Script Execution
+    description: mshta executing remote content (HTA) is often malicious
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: mshta
+      - field: process.command_line
+        operator: regex
+        value: '(?i)\bhttp(s)?://'
+    actions:
+      - type: alert
+        message: "mshta remote execution on {{agent.hostname}}: {{process.command_line}}"
+
+  - id: lolbin_regsvr32_sct
+    name: regsvr32 Scriptlet Execution
+    description: regsvr32 with /i and scrobj.dll (Squiblydoo)
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: regsvr32
+      - field: process.command_line
+        operator: regex
+        value: '(?i)scrobj\.dll|/i:\s*http'
+    actions:
+      - type: alert
+        message: "regsvr32 suspicious usage on {{agent.hostname}}: {{process.command_line}}"
+
+  - id: lolbin_rundll32_javascript
+    name: rundll32 JavaScript/URL Handler
+    description: rundll32 executing javascript/url handlers
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: rundll32
+      - field: process.command_line
+        operator: regex
+        value: '(?i)javascript:|url\.dll,FileProtocolHandler|shell32\.dll,ShellExec_RunDLL'
+    actions:
+      - type: alert
+        message: "rundll32 suspicious handler on {{agent.hostname}}: {{process.command_line}}"
+
+  - id: defense_vssadmin_delete_shadows
+    name: Shadow Copies Deleted (vssadmin)
+    description: Ransomware commonly deletes shadow copies
+    enabled: true
+    severity: critical
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: regex
+        value: '(?i)(vssadmin|wmic|powershell)(\\.exe)?$'
+      - field: process.command_line
+        operator: regex
+        value: '(?i)delete\s+shadows|shadowcopy\s+delete|wbadmin\s+delete\s+catalog'
+    actions:
+      - type: alert
+        message: "Shadow copy deletion on {{agent.hostname}}: {{process.command_line}}"
+
+  - id: defense_wevtutil_clr
+    name: Event Logs Cleared via wevtutil
+    description: wevtutil cl used to clear logs (anti-forensics)
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: wevtutil
+      - field: process.command_line
+        operator: regex
+        value: '(?i)\bcl\b'
+    actions:
+      - type: alert
+        message: "wevtutil log clear on {{agent.hostname}} user={{user.name}}"
+
+  - id: defense_disable_firewall
+    name: Firewall Disabled
+    description: Disabling firewall via netsh/PowerShell
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.command_line
+        operator: regex
+        value: '(?i)advfirewall\s+set\s+allprofiles\s+state\s+off|Set-NetFirewallProfile\s+-Enabled\s+False'
+    actions:
+      - type: alert
+        message: "Firewall disabled on {{agent.hostname}}: {{process.command_line}}"
+
+  - id: defense_disable_defender
+    name: Defender Tampering
+    description: Attempts to disable Windows Defender
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.command_line
+        operator: regex
+        value: '(?i)Set-MpPreference\s+-DisableRealtimeMonitoring\s+\$?true|DisableAntiSpyware|Windows\s*Defender'
+    actions:
+      - type: alert
+        message: "Defender tampering on {{agent.hostname}}: {{process.command_line}}"
+
+  - id: persistence_startup_folder
+    name: Startup Folder Persistence
+    description: File created in startup folders
+    enabled: true
+    severity: high
+    category: file
+    conditions:
+      - field: event.category
+        operator: equals
+        value: FILE
+      - field: file.path
+        operator: regex
+        value: '(?i)\\\\Microsoft\\\\Windows\\\\Start Menu\\\\Programs\\\\Startup|/etc/rc\.local|\.config/autostart'
+      - field: file.operation
+        operator: in
+        values: [CREATED, MODIFIED, WRITE]
+    actions:
+      - type: alert
+        message: "Startup persistence file change on {{agent.hostname}}: {{file.path}}"
+
+  - id: persistence_runkey_write
+    name: Registry Run Key Written
+    description: Registry autorun key modifications
+    enabled: true
+    severity: high
+    category: registry
+    conditions:
+      - field: event.category
+        operator: equals
+        value: REGISTRY
+      - field: registry.path
+        operator: regex
+        value: '(?i)\\CurrentVersion\\Run(Once)?'
+    actions:
+      - type: alert
+        message: "Registry autorun modified on {{agent.hostname}}: {{registry.path}}"
+
+  - id: persistence_schtasks_cmd
+    name: schtasks Create
+    description: schtasks creation from command line
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: schtasks
+      - field: process.command_line
+        operator: regex
+        value: '(?i)\b/create\b'
+    actions:
+      - type: alert
+        message: "schtasks created on {{agent.hostname}}: {{process.command_line}}"
+
+  - id: persistence_sc_create_service
+    name: sc.exe Create Service
+    description: Create a new Windows service via sc.exe
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: regex
+        value: '(?i)\\sc(\\.exe)?$'
+      - field: process.command_line
+        operator: regex
+        value: '(?i)\bcreate\b'
+    actions:
+      - type: alert
+        message: "Service creation via sc.exe on {{agent.hostname}}: {{process.command_line}}"
+
+  - id: file_write_executable_temp
+    name: Executable Written to Temp
+    description: Dropping executables into temp directories
+    enabled: true
+    severity: high
+    category: file
+    conditions:
+      - field: event.category
+        operator: equals
+        value: FILE
+      - field: file.path
+        operator: regex
+        value: '(?i)(\\\\Temp\\\\|\\\\AppData\\\\Local\\\\Temp\\\\|/tmp/|/var/tmp/).*(\\.exe|\\.dll|\\.ps1|\\.sh|\\.bin)$'
+      - field: file.operation
+        operator: in
+        values: [CREATED, WRITE, MODIFIED]
+    actions:
+      - type: alert
+        message: "Executable written to temp on {{agent.hostname}}: {{file.path}}"
+
+  - id: net_outbound_suspicious_ports
+    name: Outbound to Suspicious High-Risk Ports
+    description: Common attacker tooling/C2 ports
+    enabled: false
+    severity: medium
+    category: network
+    conditions:
+      - field: event.category
+        operator: equals
+        value: NETWORK
+      - field: network.direction
+        operator: equals
+        value: OUTBOUND
+      - field: network.dst_port
+        operator: in
+        values: [22, 23, 3389, 445, 5985, 5986]
+    actions:
+      - type: alert
+        message: "Outbound connection to sensitive port {{network.dst_port}} from {{agent.hostname}} to {{network.dst_ip}}"
+
+  - id: net_inbound_rdp
+    name: Inbound RDP Connection
+    description: Track inbound RDP connections
+    enabled: false
+    severity: low
+    category: network
+    conditions:
+      - field: event.category
+        operator: equals
+        value: NETWORK
+      - field: network.direction
+        operator: equals
+        value: INBOUND
+      - field: network.dst_port
+        operator: equals
+        value: 3389
+    actions:
+      - type: alert
+        message: "Inbound RDP to {{agent.hostname}} from {{network.src_ip}}"
+
+  - id: linux_ssh_failed_password_threshold
+    name: Linux SSH Failed Password Spike
+    description: Detect brute-force SSH attempts (log-based)
+    enabled: true
+    severity: high
+    category: authentication
+    conditions:
+      - field: event.category
+        operator: equals
+        value: AUTH
+      - field: event.original_message
+        operator: regex
+        value: '(?i)sshd.*failed password'
+    threshold:
+      count: 6
+      window_seconds: 90
+      group_by: [host.ip, user.name]
+    actions:
+      - type: alert
+        message: "SSH failed password spike: {{count}} in {{window_seconds}}s user={{user.name}} ip={{host.ip}}"
+
+  - id: linux_sudo_auth_fail_threshold
+    name: Linux sudo Authentication Failures
+    description: Detect repeated sudo auth failures
+    enabled: true
+    severity: medium
+    category: authentication
+    conditions:
+      - field: event.category
+        operator: equals
+        value: AUTH
+      - field: event.original_message
+        operator: regex
+        value: '(?i)sudo:.*authentication failure'
+    threshold:
+      count: 3
+      window_seconds: 60
+      group_by: [user.name, host.ip]
+    actions:
+      - type: alert
+        message: "sudo auth failures: {{count}} in {{window_seconds}}s user={{user.name}} ip={{host.ip}}"
+
+  - id: linux_useradd_userdel
+    name: Linux useradd/userdel Detected
+    description: Detect local user management commands
+    enabled: false
+    severity: medium
+    category: authentication
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: in
+        values: [useradd, userdel, adduser, deluser]
+    actions:
+      - type: alert
+        message: "Linux user management: {{process.name}} by {{user.name}} on {{agent.hostname}}"
+
+  - id: process_mimikatz_indicators
+    name: Mimikatz Indicators
+    description: Common mimikatz strings in command line
+    enabled: true
+    severity: critical
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.command_line
+        operator: regex
+        value: '(?i)mimikatz|sekurlsa::logonpasswords|lsadump::sam'
+    actions:
+      - type: alert
+        message: "Possible mimikatz activity on {{agent.hostname}}: {{process.command_line}}"
+
+  - id: process_psexec_like
+    name: PsExec-like Remote Execution
+    description: Detect common PsExec patterns
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.command_line
+        operator: regex
+        value: '(?i)psexec(\\.exe)?\b|\\\\\\\\.*\\\\ADMIN\$'
+    actions:
+      - type: alert
+        message: "Possible remote exec (PsExec-like) on {{agent.hostname}}: {{process.command_line}}"
+
+  - id: process_wmic_remote
+    name: WMIC Remote Execution
+    description: wmic process call create / remote usage
+    enabled: true
+    severity: high
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: contains
+        value: wmic
+      - field: process.command_line
+        operator: regex
+        value: '(?i)process\s+call\s+create|/node:'
+    actions:
+      - type: alert
+        message: "WMIC remote/process create on {{agent.hostname}}: {{process.command_line}}"
+
+  - id: process_lolbin_curl_wget_download
+    name: curl/wget Download
+    description: Command-line download from URL
+    enabled: false
+    severity: low
+    category: process
+    conditions:
+      - field: event.category
+        operator: equals
+        value: PROCESS
+      - field: process.name
+        operator: in
+        values: [curl, wget]
+      - field: process.command_line
+        operator: regex
+        value: '(?i)\bhttp(s)?://'
+    actions:
+      - type: alert
+        message: "Download via {{process.name}} on {{agent.hostname}}: {{process.command_line}}"
