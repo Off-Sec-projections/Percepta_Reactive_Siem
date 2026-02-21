@@ -1,0 +1,358 @@
+//! API handlers for seed data endpoints
+//! Provides endpoints for playbooks, saved searches, vulnerabilities, cases, etc.
+
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    response::{IntoResponse, Json},
+    routing::{get, post},
+    Router,
+};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
+/// Shared application state for API handlers
+#[derive(Clone)]
+pub struct ApiState {
+    pub playbooks: Arc<RwLock<Vec<serde_json::Value>>>,
+    pub saved_searches: Arc<RwLock<Vec<serde_json::Value>>>,
+    pub vulnerabilities: Arc<RwLock<Vec<serde_json::Value>>>,
+    pub cases: Arc<RwLock<Vec<serde_json::Value>>>,
+}
+
+impl ApiState {
+    /// Initialize with seed data
+    pub fn new_with_seed_data() -> Self {
+        Self {
+            playbooks: Arc::new(RwLock::new(crate::seed_data::get_sample_playbooks())),
+            saved_searches: Arc::new(RwLock::new(crate::seed_data::get_sample_saved_searches())),
+            vulnerabilities: Arc::new(RwLock::new(crate::seed_data::get_sample_vulnerabilities())),
+            cases: Arc::new(RwLock::new(crate::seed_data::get_sample_cases())),
+        }
+    }
+}
+
+/// Build router with all seed data endpoints
+pub fn seed_data_routes(state: ApiState) -> Router {
+    Router::new()
+        // Playbooks
+        .route("/api/playbooks", get(list_playbooks).post(create_playbook))
+        .route("/api/playbooks/live", get(get_playbook_live_status).post(set_playbook_live_status))
+        .route("/api/playbooks/runs", get(list_playbook_runs))
+        
+        // Saved Searches
+        .route("/api/saved_searches", get(list_saved_searches).post(create_saved_search))
+        .route("/api/saved_searches/delete", post(delete_saved_search))
+        
+        // Vulnerabilities
+        .route("/api/vulnerabilities", get(list_vulnerabilities).post(create_vulnerability))
+        .route("/api/vulnerabilities/stats", get(vulnerability_stats))
+        .route("/api/vulnerabilities/:cve_id", get(get_vulnerability_details))
+        
+        // Cases
+        .route("/api/cases", get(list_cases).post(create_case))
+        .route("/api/cases/:id", get(get_case_details))
+        
+        // Compliance mappings
+        .route("/api/compliance/frameworks", get(list_compliance_frameworks))
+        .route("/api/compliance/:framework", get(get_compliance_framework))
+        
+        .with_state(state)
+}
+
+// ═════════════════════════════════════════════════════════════
+//  Playbook Endpoints
+// ═════════════════════════════════════════════════════════════
+
+async fn list_playbooks(State(state): State<ApiState>) -> impl IntoResponse {
+    let playbooks = state.playbooks.read().await;
+    Json(playbooks.clone())
+}
+
+#[derive(Deserialize)]
+struct CreatePlaybookRequest {
+    name: String,
+    description: Option<String>,
+    enabled: Option<bool>,
+    trigger_conditions: Vec<serde_json::Value>,
+    actions: Vec<serde_json::Value>,
+}
+
+async fn create_playbook(
+    State(state): State<ApiState>,
+    Json(req): Json<CreatePlaybookRequest>,
+) -> impl IntoResponse {
+    let new_pb = json!({
+        "id": format!("pb-{}", uuid::Uuid::new_v4()),
+        "name": req.name,
+        "description": req.description.unwrap_or_default(),
+        "enabled": req.enabled.unwrap_or(false),
+        "trigger_conditions": req.trigger_conditions,
+        "actions": req.actions,
+        "created_at": chrono::Utc::now().timestamp(),
+    });
+    
+    let mut playbooks = state.playbooks.write().await;
+    playbooks.push(new_pb.clone());
+    
+    (StatusCode::CREATED, Json(new_pb))
+}
+
+#[derive(Serialize)]
+struct PlaybookLiveStatus {
+    live: bool,
+}
+
+async fn get_playbook_live_status() -> impl IntoResponse {
+    // TODO: Read from persistent config
+    let live = std::env::var("PERCEPTA_PLAYBOOKS_LIVE").unwrap_or_default() == "true";
+    Json(PlaybookLiveStatus { live })
+}
+
+#[derive(Deserialize)]
+struct SetPlaybookLiveRequest {
+    live: bool,
+}
+
+async fn set_playbook_live_status(
+    Json(req): Json<SetPlaybookLiveRequest>,
+) -> impl IntoResponse {
+    // TODO: Persist to config
+    tracing::warn!("Playbook live mode set to: {}", req.live);
+    Json(PlaybookLiveStatus { live: req.live })
+}
+
+async fn list_playbook_runs() -> impl IntoResponse {
+    // TODO: Query actual playbook execution history from database
+    // For now, return empty array
+    Json(json!([]))
+}
+
+// ═════════════════════════════════════════════════════════════
+//  Saved Search Endpoints
+// ═════════════════════════════════════════════════════════════
+
+async fn list_saved_searches(State(state): State<ApiState>) -> impl IntoResponse {
+    let searches = state.saved_searches.read().await;
+    Json(json!({ "saved_searches": searches.clone() }))
+}
+
+#[derive(Deserialize)]
+struct CreateSavedSearchRequest {
+    name: String,
+    query: String,
+    filters: Option<serde_json::Value>,
+}
+
+async fn create_saved_search(
+    State(state): State<ApiState>,
+    Json(req): Json<CreateSavedSearchRequest>,
+) -> impl IntoResponse {
+    let new_search = json!({
+        "id": format!("ss-{}", uuid::Uuid::new_v4()),
+        "name": req.name,
+        "query": req.query,
+        "filters": req.filters.unwrap_or(json!({})),
+        "created_at": chrono::Utc::now().timestamp(),
+    });
+    
+    let mut searches = state.saved_searches.write().await;
+    searches.push(new_search.clone());
+    
+    (StatusCode::CREATED, Json(new_search))
+}
+
+#[derive(Deserialize)]
+struct DeleteSavedSearchRequest {
+    id: String,
+}
+
+async fn delete_saved_search(
+    State(state): State<ApiState>,
+    Json(req): Json<DeleteSavedSearchRequest>,
+) -> impl IntoResponse {
+    let mut searches = state.saved_searches.write().await;
+    searches.retain(|s| s.get("id").and_then(|v| v.as_str()) != Some(&req.id));
+    
+    Json(json!({ "success": true }))
+}
+
+// ═════════════════════════════════════════════════════════════
+//  Vulnerability Endpoints
+// ═════════════════════════════════════════════════════════════
+
+async fn list_vulnerabilities(State(state): State<ApiState>) -> impl IntoResponse {
+    let vulns = state.vulnerabilities.read().await;
+    Json(json!({ "vulnerabilities": vulns.clone() }))
+}
+
+#[derive(Deserialize)]
+struct CreateVulnerabilityRequest {
+    cve_id: String,
+    severity: String,
+    cvss_score: Option<f32>,
+    affected_software: Option<String>,
+    description: Option<String>,
+    status: Option<String>,
+}
+
+async fn create_vulnerability(
+    State(state): State<ApiState>,
+    Json(req): Json<CreateVulnerabilityRequest>,
+) -> impl IntoResponse {
+    let new_vuln = json!({
+        "cve_id": req.cve_id,
+        "severity": req.severity,
+        "cvss_score": req.cvss_score.unwrap_or(5.0),
+        "affected_software": req.affected_software.unwrap_or_default(),
+        "description": req.description.unwrap_or_default(),
+        "status": req.status.unwrap_or_else(|| "open".to_string()),
+        "exploited_in_wild": false,
+        "discovered_at": chrono::Utc::now().timestamp(),
+    });
+    
+    let mut vulns = state.vulnerabilities.write().await;
+    vulns.push(new_vuln.clone());
+    
+    (StatusCode::CREATED, Json(new_vuln))
+}
+
+async fn vulnerability_stats(State(state): State<ApiState>) -> impl IntoResponse {
+    let vulns = state.vulnerabilities.read().await;
+    
+    let mut by_severity = std::collections::HashMap::new();
+    let mut by_status = std::collections::HashMap::new();
+    let mut exploited_count = 0;
+    let mut cvss_sum = 0.0;
+    let mut cvss_count = 0;
+    
+    for v in vulns.iter() {
+        let severity = v.get("severity").and_then(|s| s.as_str()).unwrap_or("unknown");
+        *by_severity.entry(severity).or_insert(0) += 1;
+        
+        let status = v.get("status").and_then(|s| s.as_str()).unwrap_or("unknown");
+        *by_status.entry(status).or_insert(0) += 1;
+        
+        if v.get("exploited_in_wild").and_then(|b| b.as_bool()).unwrap_or(false) {
+            exploited_count += 1;
+        }
+        
+        if let Some(cvss) = v.get("cvss_score").and_then(|s| s.as_f64()) {
+            cvss_sum += cvss;
+            cvss_count += 1;
+        }
+    }
+    
+    let mean_cvss = if cvss_count > 0 { cvss_sum / cvss_count as f64 } else { 0.0 };
+    
+    Json(json!({
+        "total": vulns.len(),
+        "by_severity": by_severity,
+        "by_status": by_status,
+        "exploited_in_wild": exploited_count,
+        "mean_cvss": mean_cvss,
+    }))
+}
+
+async fn get_vulnerability_details(
+    State(state): State<ApiState>,
+    Path(cve_id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let vulns = state.vulnerabilities.read().await;
+    
+    let vuln = vulns.iter()
+        .find(|v| v.get("cve_id").and_then(|id| id.as_str()) == Some(&cve_id))
+        .ok_or(StatusCode::NOT_FOUND)?;
+    
+    Ok(Json(vuln.clone()))
+}
+
+// ═════════════════════════════════════════════════════════════
+//  Case Management Endpoints
+// ═════════════════════════════════════════════════════════════
+
+async fn list_cases(State(state): State<ApiState>) -> impl IntoResponse {
+    let cases = state.cases.read().await;
+    Json(cases.clone())
+}
+
+#[derive(Deserialize)]
+struct CreateCaseRequest {
+    title: String,
+    description: Option<String>,
+    severity: String,
+    assignee: Option<String>,
+}
+
+async fn create_case(
+    State(state): State<ApiState>,
+    Json(req): Json<CreateCaseRequest>,
+) -> impl IntoResponse {
+    let new_case = json!({
+        "id": format!("case-{}", uuid::Uuid::new_v4()),
+        "title": req.title,
+        "description": req.description.unwrap_or_default(),
+        "status": "open",
+        "severity": req.severity,
+        "assignee": req.assignee.unwrap_or_else(|| "Unassigned".to_string()),
+        "created_at": chrono::Utc::now().timestamp(),
+        "alert_ids": [],
+        "tags": [],
+    });
+    
+    let mut cases = state.cases.write().await;
+    cases.push(new_case.clone());
+    
+    (StatusCode::CREATED, Json(new_case))
+}
+
+async fn get_case_details(
+    State(state): State<ApiState>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let cases = state.cases.read().await;
+    
+    let case = cases.iter()
+        .find(|c| c.get("id").and_then(|id_val| id_val.as_str()) == Some(&id))
+        .ok_or(StatusCode::NOT_FOUND)?;
+    
+    Ok(Json(case.clone()))
+}
+
+// ═════════════════════════════════════════════════════════════
+//  Compliance Framework Endpoints
+// ═════════════════════════════════════════════════════════════
+
+async fn list_compliance_frameworks() -> impl IntoResponse {
+    let frameworks = crate::seed_data::get_sample_compliance_mappings();
+    let names: Vec<String> = frameworks.keys().cloned().collect();
+    Json(json!({ "frameworks": names }))
+}
+
+async fn get_compliance_framework(
+    Path(framework): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let all_mappings = crate::seed_data::get_sample_compliance_mappings();
+    
+    let mappings = all_mappings.get(&framework)
+        .ok_or(StatusCode::NOT_FOUND)?;
+    
+    Ok(Json(json!({
+        "framework": framework,
+        "mappings": mappings,
+    })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_api_state_initialization() {
+        let state = ApiState::new_with_seed_data();
+        let playbooks = state.playbooks.read().await;
+        assert!(!playbooks.is_empty());
+    }
+}
