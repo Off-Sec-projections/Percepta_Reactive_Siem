@@ -1,0 +1,16 @@
+name: "7045_service_installed"
+event_id: 7045
+provider: "Service Control Manager"
+metadata:
+  winlog.event_data.AccountName: "CONTOSO\\admin"
+  winlog.event_data.ServiceName: "EvilService"
+  winlog.event_data.ImagePath: "C:\\Windows\\Temp\\evil.exe"
+expect:
+  category: "SYSTEM"
+  action: "service_install"
+  outcome: "SUCCESS"
+  user_name: "CONTOSO\\admin"
+  metadata_equals:
+    metadata.service_name: "EvilService"
+    metadata.service_file: "C:\\Windows\\Temp\\evil.exe"
+  rule_should_match: "win_scm_service_install_7045"
