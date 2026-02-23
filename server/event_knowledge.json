@@ -1,0 +1,256 @@
+{
+  "version": 1,
+  "windows": {
+    "Microsoft-Windows-Security-Auditing": {
+      "1102": {
+        "title": "Security audit log was cleared",
+        "meaning": "The Windows Security Event Log was cleared. This often reduces visibility and is a common anti-forensics step.",
+        "why_it_happens": [
+          "Administrator cleared logs during maintenance",
+          "Attacker cleared logs to hide activity"
+        ],
+        "investigation": [
+          "Pivot on the clearing account (Subject user) and host around the same timestamp",
+          "Check for privilege escalation events (e.g., 4672) shortly before",
+          "Look for suspicious process creation near the event (e.g., 4688)"
+        ],
+        "false_positives": [
+          "Planned maintenance or log rotation scripts",
+          "Incident-response activity"
+        ],
+        "related_event_ids": ["4672", "4688", "4719"]
+      },
+      "4624": {
+        "title": "Successful logon",
+        "meaning": "A logon session was successfully created. Details such as logon type and authentication package explain the context.",
+        "why_it_happens": [
+          "Interactive user sign-in",
+          "Service account authentication",
+          "Remote access (RDP/SMB/WinRM) depending on logon type"
+        ],
+        "investigation": [
+          "Check logon type and source IP/workstation name in the raw fields",
+          "Correlate with 4688 process creation after the logon",
+          "If it is a privileged user, look for 4672 (special privileges)"
+        ],
+        "false_positives": [
+          "High volume from normal services and scheduled tasks"
+        ],
+        "related_event_ids": ["4625", "4634", "4672", "4688"]
+      },
+      "4625": {
+        "title": "Failed logon",
+        "meaning": "An attempt to log on failed. Repeated failures from one source may indicate brute-force or password spraying.",
+        "why_it_happens": [
+          "User typed wrong password",
+          "Service account password out of date",
+          "Brute-force or password spray attempt"
+        ],
+        "investigation": [
+          "Pivot on username + source IP/workstation",
+          "Look for spikes across many usernames from one source (spray)",
+          "Check whether a successful logon (4624) follows the failures"
+        ],
+        "false_positives": [
+          "Misconfigured services",
+          "Legacy systems attempting old credentials"
+        ],
+        "related_event_ids": ["4624", "4740", "4771", "4776"]
+      },
+      "4634": {
+        "title": "Logoff",
+        "meaning": "A logon session ended. Useful for session tracking and bounding investigation windows.",
+        "why_it_happens": ["User logged off", "Session terminated by system/service"],
+        "investigation": [
+          "Use it to bound activity between 4624 and 4634",
+          "Correlate with process/network activity in that time window"
+        ],
+        "false_positives": ["Normal background activity"],
+        "related_event_ids": ["4624"]
+      },
+      "4648": {
+        "title": "Explicit credentials used",
+        "meaning": "A process attempted to log on using explicit credentials (often 'Run as' or programmatic credential use).",
+        "why_it_happens": [
+          "Admin tools using alternate credentials",
+          "Credential theft / lateral movement tooling"
+        ],
+        "investigation": [
+          "Identify the calling process and target account in raw fields",
+          "Pivot on destination host/service and the account used",
+          "Look for 4688 process creation and network connections around the time"
+        ],
+        "false_positives": ["Legitimate admin operations"],
+        "related_event_ids": ["4624", "4688"]
+      },
+      "4672": {
+        "title": "Special privileges assigned",
+        "meaning": "A logon was granted special privileges. Often indicates an administrative token.",
+        "why_it_happens": [
+          "Administrator logged on",
+          "Service account with elevated rights"
+        ],
+        "investigation": [
+          "Pivot on that user + host for follow-on activity (4688)",
+          "Check for security setting changes (4719) or group changes (4728/4732)"
+        ],
+        "false_positives": ["Normal admin work"],
+        "related_event_ids": ["4624", "4688", "4719", "4728", "4732"]
+      },
+      "4688": {
+        "title": "Process creation",
+        "meaning": "A new process was created. Command line and parent process provide the most investigative value.",
+        "why_it_happens": ["Normal program execution", "Scripting or tooling", "Malware execution"],
+        "investigation": [
+          "Inspect command line, parent process, and user",
+          "Look for LOLBins (powershell, cmd, wmic, rundll32, mshta, regsvr32, certutil)",
+          "Correlate with network connections and file writes near the time"
+        ],
+        "false_positives": ["High volume on busy systems"],
+        "related_event_ids": ["4624", "4672", "4104"]
+      },
+      "4697": {
+        "title": "Service installed",
+        "meaning": "A new service was installed. Services are a common persistence mechanism.",
+        "why_it_happens": ["Software installation", "Remote management tools", "Persistence by attacker"],
+        "investigation": [
+          "Check service name/binary path in raw fields",
+          "Pivot on the installing account",
+          "Look for 7045 from Service Control Manager as corroboration"
+        ],
+        "false_positives": ["Legitimate software deployment"],
+        "related_event_ids": ["7045", "4688"]
+      },
+      "4698": {
+        "title": "Scheduled task created",
+        "meaning": "A scheduled task was created. Common persistence method.",
+        "why_it_happens": ["Legitimate scheduled job", "Persistence or automation by attacker"],
+        "investigation": [
+          "Inspect task name and command/action in raw fields",
+          "Pivot on the creator account and timestamp",
+          "Look for follow-on 4688 or file writes"
+        ],
+        "false_positives": ["IT automation"],
+        "related_event_ids": ["4688"]
+      },
+      "4719": {
+        "title": "Audit policy changed",
+        "meaning": "Audit policy was modified. This can reduce logging coverage (defense evasion).",
+        "why_it_happens": ["Policy updates", "Attacker tampering"],
+        "investigation": [
+          "Pivot on the changing account and system",
+          "Look for nearby privilege events (4672) and process creation (4688)"
+        ],
+        "false_positives": ["Planned policy changes"],
+        "related_event_ids": ["4672", "4688", "1102"]
+      },
+      "4720": {
+        "title": "User account created",
+        "meaning": "A new local/domain user account was created.",
+        "why_it_happens": ["IT provisioning", "Attacker creates backdoor account"],
+        "investigation": [
+          "Identify creator account and new account",
+          "Check for group membership additions (4728/4732)",
+          "Look for interactive logons by the new account (4624)"
+        ],
+        "false_positives": ["Normal onboarding"],
+        "related_event_ids": ["4728", "4732", "4624"]
+      },
+      "4726": {
+        "title": "User account deleted",
+        "meaning": "A user account was deleted. Can indicate cleanup after compromise.",
+        "why_it_happens": ["Offboarding", "Attacker cleanup"],
+        "investigation": [
+          "Identify actor account and deleted account",
+          "Pivot for privilege/group changes before deletion",
+          "Review logons and process activity in the prior window"
+        ],
+        "false_positives": ["Normal offboarding"],
+        "related_event_ids": ["4720", "4728", "4732"]
+      },
+      "4728": {
+        "title": "Member added to security-enabled global group",
+        "meaning": "A user was added to a privileged or security-relevant group (potential privilege escalation).",
+        "why_it_happens": ["Admin group management", "Privilege escalation by attacker"],
+        "investigation": [
+          "Confirm which group and which member was added",
+          "Pivot on the actor account and timeframe",
+          "Check for subsequent privileged logons (4672)"
+        ],
+        "false_positives": ["Normal admin operations"],
+        "related_event_ids": ["4732", "4672"]
+      },
+      "4732": {
+        "title": "Member added to security-enabled local group",
+        "meaning": "A user was added to a local security group. Often used to grant local admin rights.",
+        "why_it_happens": ["Helpdesk admin changes", "Privilege escalation"],
+        "investigation": [
+          "Confirm group/member/actor",
+          "Look for 4672/4624 logons using the new privileges"
+        ],
+        "false_positives": ["Routine workstation administration"],
+        "related_event_ids": ["4728", "4672", "4624"]
+      },
+      "4740": {
+        "title": "Account locked out",
+        "meaning": "An account was locked due to too many failed logons. Can indicate brute-force or misconfiguration.",
+        "why_it_happens": ["User forgot password", "Password spray/brute-force", "Bad cached credentials"],
+        "investigation": [
+          "Pivot on the account and caller computer/source",
+          "Review preceding 4625 failures",
+          "Check for distributed sources across many accounts"
+        ],
+        "false_positives": ["Cached credentials on services/devices"],
+        "related_event_ids": ["4625", "4624"]
+      },
+      "4771": {
+        "title": "Kerberos pre-authentication failed",
+        "meaning": "Kerberos pre-auth failed. Often seen during password spraying against domain accounts.",
+        "why_it_happens": ["Wrong password", "Password spray", "Time skew / Kerberos issues"],
+        "investigation": [
+          "Pivot on user and source address",
+          "Look for many users targeted from one source",
+          "Check if 4624 follows for the same user"
+        ],
+        "false_positives": ["Kerberos/environment issues"],
+        "related_event_ids": ["4625", "4624", "4776"]
+      },
+      "4776": {
+        "title": "NTLM authentication failed",
+        "meaning": "NTLM authentication failed. Repeated failures may indicate spray/brute-force or old credentials.",
+        "why_it_happens": ["Wrong password", "Legacy systems using NTLM", "Password spray"],
+        "investigation": [
+          "Pivot on user and source",
+          "Identify whether failures cluster to one host/service",
+          "Check for subsequent success (4624)"
+        ],
+        "false_positives": ["Misconfigured services"],
+        "related_event_ids": ["4625", "4624", "4771"]
+      }
+    },
+    "Microsoft-Windows-PowerShell": {
+      "4104": {
+        "title": "PowerShell Script Block logging",
+        "meaning": "A PowerShell script block was logged. High value for detecting obfuscation, download-exec patterns, and suspicious cmdlets.",
+        "why_it_happens": ["PowerShell usage", "Admin scripts", "Malicious PowerShell"],
+        "investigation": [
+          "Review the script block text in Raw JSON",
+          "Search for download/execute keywords (iex, downloadstring, base64)",
+          "Pivot to 4688 process creation around the same time"
+        ],
+        "false_positives": ["Legitimate automation"],
+        "related_event_ids": ["4688"]
+      }
+    }
+  },
+  "windows_service_control_manager": {
+    "7045": {
+      "title": "A service was installed (SCM)",
+      "meaning": "Service Control Manager reports a new service was installed. Often pairs with Security event 4697.",
+      "why_it_happens": ["Software install", "Persistence"],
+      "investigation": ["Inspect service name and binary path", "Pivot on installing account and time window"],
+      "false_positives": ["Normal software deployment"],
+      "related_event_ids": ["4697", "4688"]
+    }
+  }
+}
