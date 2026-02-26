@@ -1,0 +1,38 @@
+name: "seq_4719_then_1102"
+expect:
+  rule_should_match: "win_sequence_audit_policy_then_log_cleared_4719_1102"
+  trigger_on_index: 1
+events:
+  - name: "e0_4719_audit_policy_changed"
+    event_id: 4719
+    provider: "Microsoft-Windows-Security-Auditing"
+    agent_id: "golden-agent-2"
+    agent_hostname: "WIN-DC02"
+    metadata:
+      winlog.event_data.SubjectUserName: "admin"
+      winlog.event_data.SubjectDomainName: "CONTOSO"
+      winlog.event_data.SubjectUserSid: "S-1-5-21-1111111111-2222222222-3333333333-500"
+    expect:
+      category: "SYSTEM"
+      action: "audit_policy_change"
+      outcome: "SUCCESS"
+      user_name: "admin"
+      user_domain: "CONTOSO"
+      user_id: "S-1-5-21-1111111111-2222222222-3333333333-500"
+
+  - name: "e1_1102_audit_log_cleared"
+    event_id: 1102
+    provider: "Microsoft-Windows-Security-Auditing"
+    agent_id: "golden-agent-2"
+    agent_hostname: "WIN-DC02"
+    metadata:
+      winlog.event_data.SubjectUserName: "admin"
+      winlog.event_data.SubjectDomainName: "CONTOSO"
+      winlog.event_data.SubjectUserSid: "S-1-5-21-1111111111-2222222222-3333333333-500"
+    expect:
+      category: "SYSTEM"
+      action: "audit_log_clear"
+      outcome: "SUCCESS"
+      user_name: "admin"
+      user_domain: "CONTOSO"
+      user_id: "S-1-5-21-1111111111-2222222222-3333333333-500"
