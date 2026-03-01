@@ -1,0 +1,35 @@
+# Percepta SIEM – Threat Intel API configuration (DEMO)
+#
+# Copy this file to `server/config/apis.toml` and fill in your keys.
+# IMPORTANT: `server/config/apis.toml` is git-ignored to prevent leaks.
+#
+# Env var override (optional): PERCEPTA_APIS_FILE=/abs/path/to/apis.toml
+
+[otx]
+# AlienVault OTX (free signup key)
+# https://otx.alienvault.com/
+api_key = ""
+base_url = "https://otx.alienvault.com"
+
+[abuseipdb]
+# AbuseIPDB (free signup key)
+# https://www.abuseipdb.com/
+api_key = ""
+base_url = "https://api.abuseipdb.com"
+
+[malwarebazaar]
+# MalwareBazaar (abuse.ch) – free API key
+# https://bazaar.abuse.ch/api/
+api_key = ""
+base_url = "https://mb-api.abuse.ch"
+
+[keyless]
+# Keyless feeds (enabled by default)
+# These do not require keys; they may still rate-limit.
+# Disable any you don't want in demos.
+
+cisa_kev_enabled = true
+cisa_kev_url = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+
+urlhaus_enabled = true
+urlhaus_base_url = "https://urlhaus-api.abuse.ch"
