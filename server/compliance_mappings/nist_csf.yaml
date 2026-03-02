@@ -1,0 +1,215 @@
+id: "NIST-CSF"
+name: "NIST Cybersecurity Framework"
+version: "1.1"
+description: "NIST Cybersecurity Framework 1.1 — Identify, Protect, Detect, Respond, Recover"
+controls:
+  # ── IDENTIFY ──────────────────────────────────────────────────────────────
+  - id: "ID.AM-1"
+    name: "Asset Inventory"
+    description: "Physical devices and systems are inventoried."
+    category: "Identify"
+    rule_ids:
+      - "agent_heartbeat_missed"
+      - "agent_certificate_expiring"
+
+  - id: "ID.AM-2"
+    name: "Software Asset Inventory"
+    description: "Software platforms and applications are inventoried."
+    category: "Identify"
+    rule_ids:
+      - "win_service_installed_4697"
+      - "win_scm_service_install_7045"
+
+  - id: "ID.RA-1"
+    name: "Asset Vulnerabilities"
+    description: "Asset vulnerabilities are identified and documented."
+    category: "Identify"
+    rule_ids:
+      - "sigma_win_printnightmare"
+      - "sigma_win_zerologon"
+      - "sigma_win_lsass_access"
+
+  # ── PROTECT ───────────────────────────────────────────────────────────────
+  - id: "PR.AC-1"
+    name: "Identity and Credential Management"
+    description: "Identities and credentials are managed for authorized devices, users, and processes."
+    category: "Protect"
+    rule_ids:
+      - "win_new_user_4720"
+      - "linux_new_user_created"
+      - "new_user_created"
+      - "win_user_created_4720"
+      - "win_user_deleted_4726"
+      - "win_password_reset_4724"
+      - "win_password_change_4723"
+      - "linux_useradd_userdel"
+
+  - id: "PR.AC-2"
+    name: "Physical Access Management"
+    description: "Physical access to assets is managed and protected."
+    category: "Protect"
+    rule_ids: []
+
+  - id: "PR.AC-3"
+    name: "Remote Access Management"
+    description: "Remote access is managed."
+    category: "Protect"
+    rule_ids:
+      - "net_inbound_rdp"
+      - "sigma_net_rdp_to_external"
+      - "sigma_net_ssh_to_external_rare"
+      - "linux_ssh_failed_password_threshold"
+      - "linux_ssh_bruteforce"
+
+  - id: "PR.AC-4"
+    name: "Access Permissions Management"
+    description: "Access permissions and authorizations are managed, incorporating least privilege."
+    category: "Protect"
+    rule_ids:
+      - "warn_sudo_abuse"
+      - "privilege_escalation"
+      - "win_special_privileges_4672"
+      - "linux_sudo_auth_failure"
+      - "linux_sudo_auth_fail_threshold"
+      - "linux_sudo_failures"
+      - "win_group_member_added_4728_4732_4756"
+      - "win_group_membership_change_4728_4732"
+      - "windows_admin_group_member_added"
+
+  - id: "PR.DS-1"
+    name: "Data at Rest Protection"
+    description: "Data at rest is protected."
+    category: "Protect"
+    rule_ids:
+      - "file_windows_sam_system_access"
+      - "file_shadow_or_passwd_access"
+      - "dlp_credit_card_in_log"
+      - "dlp_ssn_in_log"
+      - "dlp_private_key_in_log"
+
+  - id: "PR.DS-2"
+    name: "Data in Transit Protection"
+    description: "Data in transit is protected."
+    category: "Protect"
+    rule_ids:
+      - "exfil_dns_tunneling"
+      - "network_tls_sni_suspicious"
+      - "sigma_net_dns_over_https"
+
+  - id: "PR.IP-1"
+    name: "Baseline Configuration"
+    description: "A baseline configuration of IT/OT systems is maintained."
+    category: "Protect"
+    rule_ids:
+      - "tool_netsh_firewall_changes"
+      - "defense_disable_firewall"
+      - "defense_disable_defender"
+      - "sigma_win_etw_patching"
+      - "sigma_win_amsi_patching"
+
+  - id: "PR.PT-1"
+    name: "Audit/Log Records"
+    description: "Audit/log records are determined, documented, implemented, and reviewed."
+    category: "Protect"
+    rule_ids:
+      - "defense_evasion_clear_event_logs"
+      - "win_audit_log_cleared_1102"
+      - "defense_wevtutil_clr"
+      - "win_sequence_audit_policy_then_log_cleared_4719_1102"
+      - "sigma_linux_history_deletion"
+      - "seq_linux_log_tampering"
+
+  # ── DETECT ────────────────────────────────────────────────────────────────
+  - id: "DE.AE-1"
+    name: "Baseline Network Activity"
+    description: "A baseline of network operations and expected data flows is established."
+    category: "Detect"
+    rule_ids:
+      - "network_c2_port"
+      - "network_suspicious_ports_extended"
+      - "net_outbound_suspicious_ports"
+      - "network_large_egress_threshold"
+      - "recon_port_scan_detected"
+      - "suspicious_network_scan"
+
+  - id: "DE.AE-2"
+    name: "Analyze Events for Attack Indicators"
+    description: "Detected events are analyzed to understand attack targets and methods."
+    category: "Detect"
+    rule_ids:
+      - "ids_suricata_alert_high"
+      - "tags_malware_indicator"
+      - "seq_brute_force_then_login_success"
+      - "seq_suspicious_process_then_c2"
+      - "seq_cred_dump_then_lateral"
+
+  - id: "DE.CM-1"
+    name: "Network Monitoring"
+    description: "The network is monitored to detect potential cybersecurity events."
+    category: "Detect"
+    rule_ids:
+      - "network_c2_port"
+      - "suspicious_network_scan"
+      - "recon_port_scan_detected"
+      - "sigma_net_ssh_to_external_rare"
+      - "exfil_large_outbound_transfer"
+      - "network_large_egress_threshold"
+
+  - id: "DE.CM-3"
+    name: "Personnel Activity Monitoring"
+    description: "Personnel activity is monitored to detect potential cybersecurity events."
+    category: "Detect"
+    rule_ids:
+      - "crit_root_login"
+      - "win_success_logon_4624_admin"
+      - "win_successful_logon_4624"
+      - "seq_rdp_login_then_lateral"
+      - "seq_multiple_host_login_lateral"
+
+  - id: "DE.CM-4"
+    name: "Malicious Code Detection"
+    description: "Malicious code is detected."
+    category: "Detect"
+    rule_ids:
+      - "windows_defender_malware"
+      - "credential_dumping_mimikatz_keywords"
+      - "sigma_win_lsass_access"
+      - "sigma_win_proc_hollowing"
+      - "sigma_linux_crypto_miner_process"
+      - "ransomware_mass_modifications_low"
+      - "ransomware_known_extensions"
+      - "mass_file_encryption"
+
+  - id: "DE.CM-7"
+    name: "Monitoring Unauthorized Personnel/Connections"
+    description: "Monitoring for unauthorized personnel, connections, devices, and software."
+    category: "Detect"
+    rule_ids:
+      - "unauthorized_service_install"
+      - "fim_sensitive_path_change"
+      - "trap_credential_canary"
+      - "honeypot_cowrie_login_failed"
+      - "honeypot_file_accessed"
+      - "honeypot_service_connection"
+
+  # ── RESPOND ───────────────────────────────────────────────────────────────
+  - id: "RS.AN-1"
+    name: "Notifications Investigated"
+    description: "Notifications from detection systems are investigated."
+    category: "Respond"
+    rule_ids:
+      - "crit_ssh_brute_force"
+      - "failed_login_threshold"
+      - "win_failed_logon_4625_bruteforce_threshold"
+      - "win_account_lockout_4740"
+      - "brute_force_linux_ssh_threshold"
+
+  - id: "RS.MI-1"
+    name: "Incidents Contained"
+    description: "Incidents are contained."
+    category: "Respond"
+    rule_ids:
+      - "lateral_movement_psexec_indicators"
+      - "sigma_win_pass_the_hash"
+      - "sigma_win_dcsync"
+      - "seq_privesc_then_persistence"
