@@ -1,0 +1,220 @@
+syntax = "proto3";
+
+package percepta.siem.ingestion.v1;
+
+// Optional: if Go is used in future
+option go_package = "github.com/percepta/siem/gen/go/ingestion/v1";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// ==========================
+// Core Event Message
+// ==========================
+message Event {
+  // --- Event timing ---
+  google.protobuf.Timestamp event_time = 1;   // when the event occurred
+  google.protobuf.Timestamp ingest_time = 2;  // when SIEM received it
+
+  // --- Agent / Host Info ---
+  message Agent {
+    string id = 1;        // unique agent ID
+    string hostname = 2;  // machine hostname
+    string ip = 3;        // primary agent IP
+    string mac = 4;       // optional MAC
+    string version = 5;   // agent software version
+    OS os = 6;            // OS info
+  }
+  message OS {
+    string name = 1;      // "Windows", "Linux", etc.
+    string version = 2;   // "10.0.19045"
+    string kernel = 3;    // optional kernel info
+  }
+  Agent agent = 3;
+
+  // --- Event Details ---
+  message EventDetails {
+    string summary = 1;             // short human-readable summary
+    string original_message = 2;    // raw log text
+    EventCategory category = 3;     // normalized category
+    string action = 4;              // e.g. "logon", "delete"
+    EventOutcome outcome = 5;       // success, failure, blocked
+    string level = 6;               // "Info", "Warn", "Error"
+    int32 severity = 7;             // 0=debug, 1=info, ... 4=critical
+    string provider = 8;            // source provider (e.g., "Microsoft-Windows-Security-Auditing")
+    uint64 event_id = 9;            // numeric event ID (e.g., 4624)
+    uint64 record_id = 10;          // record index in event log
+  }
+  EventDetails event = 4;
+
+  // --- User Info ---
+  message User {
+    string id = 1;          // SID or UID
+    string name = 2;        // username
+    string domain = 3;      // domain/workgroup
+    repeated string privileges = 4; // e.g., ["SeRemoteInteractiveLogonRight"]
+  }
+  User user = 5;
+
+  // --- Host Info (network stack) ---
+  message Host {
+    repeated string ip = 1;
+    repeated string mac = 2;
+  }
+  Host host = 6;
+
+  // --- Network Info ---
+  message Network {
+    string src_ip = 1;
+    uint32 src_port = 2;
+    string dst_ip = 3;
+    uint32 dst_port = 4;
+    string protocol = 5;    // "tcp", "udp", etc.
+    NetworkDirection direction = 6;
+    // Future DPI metadata
+    uint64 bytes_in = 7;
+    uint64 bytes_out = 8;
+    uint64 flow_duration_ms = 9;
+    string tls_sni = 10;
+    string ja3 = 11;
+    string ja3s = 12;
+    string tls_cert_subject = 13;
+    string tls_cert_issuer = 14;
+  }
+  Network network = 7;
+
+  // --- Process Info ---
+  message Process {
+    uint32 pid = 1;
+    uint32 ppid = 2;
+    string name = 3;
+    string command_line = 4;
+    map<string,string> hash = 5; // {"sha256":"abcd1234..."}
+  }
+  Process process = 8;
+
+  // --- File Info ---
+  message File {
+    string path = 1;
+    map<string,string> hash = 2; // {"sha256":"abcd..."}
+    string permissions = 3;
+    FileOperation operation = 4;
+  }
+  File file = 9;
+
+  // --- Registry Info (Windows only) ---
+  message Registry {
+    string path = 1;
+    string value = 2;
+  }
+  Registry registry = 10;
+
+  // --- Metadata / Tags ---
+  map<string,string> metadata = 11; // flexible extra fields
+  repeated string tags = 12;        // ["login","rdp","success"]
+
+  // --- Threat Intel / Correlation ---
+  string threat_indicator = 13; // e.g., malicious IP
+  string threat_source = 14;    // e.g., "AbuseIPDB"
+  string correlation_id = 15;   // to tie related events
+  string hash = 16;             // deduplication hash (sha256 of event)
+
+  // --- Enums ---
+  enum EventCategory {
+    CATEGORY_UNKNOWN = 0;
+    AUTH = 1;
+    NETWORK = 2;
+    FILE = 3;
+    PROCESS = 4;
+    REGISTRY = 5;
+    SYSTEM = 6;
+    OTHER = 7;
+  }
+
+  enum EventOutcome {
+    OUTCOME_UNKNOWN = 0;
+    SUCCESS = 1;
+    FAILURE = 2;
+    BLOCKED = 3;
+  }
+
+  enum FileOperation {
+    FILE_OP_UNKNOWN = 0;
+    CREATED = 1;
+    DELETED = 2;
+    MODIFIED = 3;
+    READ = 4;
+  }
+
+  enum NetworkDirection {
+    DIR_UNKNOWN = 0;
+    INBOUND = 1;
+    OUTBOUND = 2;
+    LATERAL = 3;
+  }
+}
+
+// ==========================
+// Ingestion Service
+// ==========================
+message IngestionResponse {
+  bool ack = 1;
+  string event_id = 2;  // correlate ack with event.hash or correlation_id
+  string message = 3;
+}
+
+service CollectorService {
+    rpc StreamEvents(stream Event) returns (stream IngestionResponse);
+}
+
+// Service for querying stored events (used by gRPC clients / admin tools)
+message GetRecentRequest {}
+
+message EventsResponse {
+  repeated Event events = 1;
+}
+
+service EventsService {
+  // Return the most recent events available in the SIEM (in-memory cache)
+  rpc GetRecentEvents(GetRecentRequest) returns (EventsResponse);
+}
+
+message EnrollRequest {
+    string agent_id = 1;
+    string hostname = 2;
+  string ip_address = 3;
+  // One-time token to authorize enrollment
+  string otk = 4;
+  // PEM-encoded CSR generated by the agent (preferred)
+  string csr = 5;
+}
+
+message EnrollResponse {
+    string agent_id = 1;
+    // The PEM-encoded client certificate for mTLS
+    string certificate_pem = 2;
+    // The PEM-encoded private key for the client
+    string private_key_pem = 3;
+    // The PEM-encoded CA certificate to validate the server
+    string ca_certificate_pem = 4;
+}
+
+// Enrollment service: allow agents to enroll and receive their cert/key over gRPC
+service EnrollmentService {
+  rpc EnrollAgent(EnrollRequest) returns (EnrollResponse);
+}
+
+// Admin service: privileged operations like revocation
+message RevokeRequest {
+  string serial = 1; // serial number to revoke
+}
+
+message RevokeResponse {
+  bool ok = 1;
+  string message = 2;
+}
+
+service AdminService {
+  rpc RevokeCertificate(RevokeRequest) returns (RevokeResponse);
+}
+
