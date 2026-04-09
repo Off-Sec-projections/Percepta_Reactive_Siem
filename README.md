@@ -168,6 +168,3 @@ Start with `docs/`. The docs cover:
 - RBAC/security model
 - Deployment/runbooks and operational guidance
 
-## Project Description (Copy/Paste)
-
-Percepta Reactive SIEM is a cybersecurity FYP project that demonstrates an end-to-end security monitoring workflow. It uses a Rust-based agent/server architecture secured with mTLS (RSA-2048) to collect endpoint telemetry, ingest and normalize events, apply rule-based detection/correlation, and produce alerts/cases for investigation. The platform also supports reactive automation via playbooks/response actions where configured, and includes Docker-first deployment and extensive documentation.
